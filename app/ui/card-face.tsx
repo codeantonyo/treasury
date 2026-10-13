@@ -77,7 +77,7 @@ export default function CardFace({
       <div className="absolute inset-x-[18px] bottom-[16px] flex items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col">
           <span className="text-[9.5px] font-extrabold tracking-[0.18em] opacity-65">IN-APP BALANCE</span>
-          <span title={hidden ? undefined : exact} className={`truncate font-display leading-tight font-extrabold tabular-nums ${big.length > 11 ? "text-[21px]" : "text-[27px]"}`}>
+          <span title={hidden ? undefined : exact} className={`truncate font-display leading-tight font-extrabold tabular-nums ${big.length > 11 ? "text-[21px]" : "text-[min(27px,6.92vw)]"}`}>
             {/* currency symbols read better in the UI font than in Syne */}
             {sym !== currency && big.startsWith(sym) ? (
               <>

@@ -427,7 +427,7 @@ function ActivityItem({ r, pocket, names }: { r: ActivityRow; pocket?: string; n
         {r.kind === "reward" ? <GiftIcon size={16} /> : r.kind === "close" && dir !== "in" ? <XIcon size={16} /> : dir === "in" ? <ArrowInIcon /> : dir === "out" ? <ArrowOutIcon /> : <SwapIcon size={16} />}
       </span>
       <div className="flex min-w-0 grow flex-col">
-        <span className="truncate text-[13px] font-bold">{title}</span>
+        <span className="line-clamp-2 text-[13px] leading-snug font-bold">{title}</span>
         <span className="truncate text-[11px] text-dim">
           {new Date(r.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           {showOther ? ` · ${dir === "in" ? "sent" : dir === "out" ? "arrived as" : "from"} ${other}` : ""}

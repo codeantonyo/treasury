@@ -25,7 +25,7 @@ export default function WalletScreen({ data, hidden }: { data: Data; hidden: boo
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1.5">
         <span className="eyebrow">WALLET · ON-CHAIN</span>
-        <span className="chrome font-display text-[40px] leading-none font-extrabold tabular-nums">
+        <span className="chrome font-display text-[min(40px,10.26vw)] leading-none font-extrabold tabular-nums">
           {hidden ? "••••••" : data.total === null ? "—" : <Money text={usd(data.total)} />}
         </span>
         <span className="flex items-center gap-2 text-sm font-bold tabular-nums">
@@ -117,7 +117,11 @@ export default function WalletScreen({ data, hidden }: { data: Data; hidden: boo
                     )}
                   </span>
                 </span>
-                {h.live && <Sparkline data={h.spark} up={(h.change24h ?? 0) >= 0} width={44} height={24} />}
+                {h.live && (
+                  <span className="hidden min-[360px]:contents">
+                    <Sparkline data={h.spark} up={(h.change24h ?? 0) >= 0} width={44} height={24} />
+                  </span>
+                )}
                 <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
                   {h.live ? (
                     <>

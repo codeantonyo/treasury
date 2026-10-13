@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatMoney, shortNum } from "@/lib/currencies";
+import { fluid } from "@/lib/format";
 import type { SimView } from "@/lib/sim-view";
 import { withdrawSimRewards } from "../../actions";
 import { GiftIcon } from "../../../ui/icons";
@@ -53,7 +54,7 @@ export default function SimRewardsPanel({
         </span>
 
         <div className="relative flex flex-col gap-1">
-          <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: heroSize(`≈ ${usd(totalUsd)}`) }}>
+          <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: fluid(heroSize(`≈ ${usd(totalUsd)}`)) }}>
             {hidden ? "••••" : <Money text={`≈ ${usd(totalUsd)}`} />}
           </span>
           <span className="text-xs text-muted-2">
@@ -193,7 +194,7 @@ function WithdrawSheet({
       </ul>
       <div className="flex flex-col items-center gap-0.5 py-1">
         <span className="text-xs font-bold text-muted">Lands on the card as about</span>
-        <span className="chrome font-display text-[30px] leading-tight font-extrabold tabular-nums">{label ? <Money text={label} /> : "—"}</span>
+        <span className="chrome font-display text-[min(30px,7.69vw)] leading-tight font-extrabold tabular-nums">{label ? <Money text={label} /> : "—"}</span>
         <span className="text-[11px] text-dim">Final amount uses live prices when you confirm.</span>
       </div>
       <ErrorLine res={m.res} />

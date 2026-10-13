@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { usd } from "@/lib/currencies";
+import { fluid } from "@/lib/format";
 import { db } from "@/lib/db";
 import { tokenPriceXlm } from "@/lib/fx";
 import { memberView } from "@/lib/member";
@@ -104,7 +105,7 @@ async function Balance() {
   return (
     <Link href="/wallet" className="press flex flex-col items-center gap-1">
       <span className="eyebrow">WALLET · ON-CHAIN</span>
-      <span className="chrome max-w-full font-display leading-[1.1] font-extrabold tracking-[-0.01em] tabular-nums" style={{ fontSize: size }}>
+      <span className="chrome max-w-full font-display leading-[1.1] font-extrabold tracking-[-0.01em] tabular-nums" style={{ fontSize: fluid(size) }}>
         {amount}
       </span>
       <span className="text-center text-xs text-muted">

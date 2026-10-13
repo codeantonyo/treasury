@@ -53,7 +53,7 @@ export default function AccountScreen({
         <EngravedMark className="pointer-events-none absolute top-1/2 -right-8 h-[118%] -translate-y-1/2" depth={1.15} />
         <div className="relative flex flex-col gap-1">
           <span className="eyebrow">XLM TREASURY ACCOUNT</span>
-          <span className="chrome mt-1 font-display text-[40px] leading-none font-extrabold tabular-nums">
+          <span className="chrome mt-1 font-display text-[min(40px,10.26vw)] leading-none font-extrabold tabular-nums">
             {hidden ? "••••" : amount}
             {!hidden && <span className="ml-1.5 text-[0.45em] text-muted">{unit}</span>}
           </span>
@@ -162,7 +162,7 @@ function ReceiveSheet({ tag }: { tag: string }) {
       <p className="text-sm text-muted-2">Members send to your username. It arrives here, in your main account, in XLM.</p>
       <div className="flex w-full flex-col items-center gap-1 rounded-[22px] border border-white/10 bg-white/[0.04] px-5 py-6">
         <span className="eyebrow">YOUR USERNAME</span>
-        <span className="chrome font-display text-[34px] leading-tight font-extrabold break-all">@{tag}</span>
+        <span className="chrome font-display text-[min(34px,8.72vw)] leading-tight font-extrabold break-all">@{tag}</span>
       </div>
       <div className="grid w-full grid-cols-2 gap-2.5">
         <button

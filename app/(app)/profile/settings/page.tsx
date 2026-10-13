@@ -18,7 +18,7 @@ export default function Settings() {
       <Link href="/profile" className="flex items-center gap-1 self-start text-xs font-bold text-muted">
         <ChevronIcon size={14} className="rotate-180" /> Profile
       </Link>
-      <h1 className="chrome font-display text-[30px] leading-none font-extrabold">Settings</h1>
+      <h1 className="chrome font-display text-[min(30px,7.69vw)] leading-none font-extrabold">Settings</h1>
       <Suspense fallback={<Skeleton className="h-[480px]" />}>
         <Sections />
       </Suspense>

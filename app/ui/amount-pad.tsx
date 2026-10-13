@@ -1,5 +1,6 @@
 "use client";
 
+import { fluid } from "@/lib/format";
 import { useEffect, useRef } from "react";
 import { CURRENCY_INFO, pressKey } from "@/lib/currencies";
 import { BackspaceIcon } from "./icons";
@@ -59,7 +60,7 @@ export default function AmountPad({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col items-center gap-1.5 py-2">
-        <div ref={shake} className={`flex items-baseline gap-1.5 font-display leading-none font-extrabold tabular-nums ${over ? "text-red-300" : value ? "text-paper" : "text-dim"}`} style={{ fontSize: size }} aria-live="polite">
+        <div ref={shake} className={`flex items-baseline gap-1.5 font-display leading-none font-extrabold tabular-nums ${over ? "text-red-300" : value ? "text-paper" : "text-dim"}`} style={{ fontSize: fluid(size) }} aria-live="polite">
           {currency === "XLM" ? (
             <>
               {shown}

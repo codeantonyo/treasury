@@ -123,7 +123,7 @@ export default function Journey({ designs, rates, firstCard, pending }: { design
           >
             {done ? (
               <div className="flex flex-col items-center gap-3 text-center">
-                <h1 className="chrome font-display text-[30px] leading-tight font-extrabold">{name} is ready</h1>
+                <h1 className="chrome font-display text-[min(30px,7.69vw)] leading-tight font-extrabold">{name} is ready</h1>
                 <p className="max-w-[300px] text-sm text-muted-2">
                   Your new {CURRENCY_INFO[currency].name} card is in your wallet.
                   {pending ? ` ${pending} waiting reward${pending > 1 ? "s" : ""} just landed on it.` : makeDefault ? " Your rewards will land here." : ""}
@@ -140,7 +140,7 @@ export default function Journey({ designs, rates, firstCard, pending }: { design
             ) : (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <h1 className="font-display text-[26px] leading-tight font-extrabold">{STEPS[step].title}</h1>
+                  <h1 className="font-display text-[min(26px,6.67vw)] leading-tight font-extrabold">{STEPS[step].title}</h1>
                   <p className="text-sm text-muted-2">{STEPS[step].sub}</p>
                 </div>
 

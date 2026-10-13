@@ -25,7 +25,7 @@ export default function Treasury() {
       />
       <div className="relative flex flex-col gap-1.5">
         <span className="eyebrow">TREASURY</span>
-        <h1 className="chrome font-display text-[30px] leading-[1.05] font-extrabold">Your vault</h1>
+        <h1 className="chrome font-display text-[min(30px,7.69vw)] leading-[1.05] font-extrabold">Your vault</h1>
       </div>
       <Suspense
         fallback={
@@ -146,7 +146,7 @@ async function Stats({ user, holding, stale, linkedAt, addresses }: { user: User
   return (
     <section className="relative grid grid-cols-2 gap-2.5">
       <Stat icon={<GiftIcon size={16} />} label="Tier rewards" wide>
-        <span className="font-display text-[26px] leading-tight font-extrabold text-lilac-soft tabular-nums">{hidden ? "••••" : `+${n(ready)}`}</span>
+        <span className="font-display text-[min(26px,6.67vw)] leading-tight font-extrabold text-lilac-soft tabular-nums">{hidden ? "••••" : `+${n(ready)}`}</span>
         <span className="text-xs text-muted-2">
           {MAIN_TOKEN.code} ready to collect{price && !hidden ? ` · ≈ ${n((ready * BigInt(Math.round(price * 1e9))) / 1_000_000_000n)} XLM` : ""}
         </span>

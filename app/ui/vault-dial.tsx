@@ -1,5 +1,6 @@
 "use client";
 
+import { fluid } from "@/lib/format";
 import { motion } from "framer-motion";
 
 const C = 150, R = 134, GAP = 5; // 12 segments of 30°, 5° apart
@@ -75,7 +76,7 @@ export default function VaultDial({ tier, progress, amount, code }: { tier: numb
 
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-center">
         <span className="text-[10px] font-extrabold tracking-[0.2em] text-muted">{code}</span>
-        <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: size }}>
+        <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: fluid(size) }}>
           {amount}
         </span>
         <span className="mt-1 rounded-full bg-paper px-3 py-1 text-[11px] font-extrabold tracking-[0.14em] text-on-paper">

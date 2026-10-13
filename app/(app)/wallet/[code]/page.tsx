@@ -14,7 +14,7 @@ import { Money } from "../../../ui/money-kit";
 import Progress from "../../../ui/progress";
 import TierList from "../../../ui/tier-list";
 import SimRewardsPanel from "./sim-rewards-panel";
-import { DOWN, pct, price, qty, short, UP, usd } from "@/lib/format";
+import { DOWN, fluid, pct, price, qty, short, UP, usd } from "@/lib/format";
 import { Sparkline, TokenIcon } from "../../../ui/token-ui";
 
 /** Every token in the registry has a page (known up front, so the route is fully prerenderable). */
@@ -82,7 +82,7 @@ function TokenView({ h, hidden, busy, ladder, rewards }: { h: Holding; hidden: b
       <header className="flex items-center gap-4">
         <TokenIcon h={h} size={60} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className={`truncate font-display leading-tight font-extrabold ${h.name.length > 11 ? "text-[21px]" : "text-[26px]"}`}>{h.name}</h1>
+          <h1 className={`truncate font-display leading-tight font-extrabold ${h.name.length > 11 ? "text-[21px]" : "text-[min(26px,6.67vw)]"}`}>{h.name}</h1>
           <span className="text-xs font-bold text-muted">
             {h.code}
             {h.tier && h.tier.n > 0 ? ` · Tier ${h.tier.n}` : ""}
@@ -99,7 +99,7 @@ function TokenView({ h, hidden, busy, ladder, rewards }: { h: Holding; hidden: b
           <section className="flex flex-col gap-1">
             <span className="eyebrow">YOU HOLD</span>
             <span className="flex flex-wrap items-baseline gap-x-2">
-              <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: big(hidden ? "••••" : qty(h.amount)) }}>
+              <span className="chrome font-display leading-none font-extrabold tabular-nums" style={{ fontSize: fluid(big(hidden ? "••••" : qty(h.amount))) }}>
                 {hidden ? "••••" : qty(h.amount)}
               </span>
               <span className="font-sans text-sm font-extrabold text-muted">{h.code}</span>
@@ -109,7 +109,7 @@ function TokenView({ h, hidden, busy, ladder, rewards }: { h: Holding; hidden: b
           </section>
 
           <section className="flex flex-col gap-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
-            <div className="flex items-baseline justify-between">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
               <span className="font-display text-xl font-extrabold tabular-nums">{h.priceUsd !== null ? <Money text={price(h.priceUsd)} /> : "—"}</span>
               {h.change24h !== null && (
                 <span className="text-sm font-extrabold tabular-nums" style={{ color: up ? UP : DOWN }}>

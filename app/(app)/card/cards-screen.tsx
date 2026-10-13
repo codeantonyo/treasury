@@ -95,7 +95,7 @@ export default function CardsScreen({
       <header className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="eyebrow">HELD ACROSS YOUR CARDS</span>
-          <span className="chrome font-display text-[34px] leading-none font-extrabold tabular-nums">
+          <span className="chrome font-display text-[min(34px,8.72vw)] leading-none font-extrabold tabular-nums">
             {hidden ? "••••" : heldUsd === null ? "—" : <Money text={usd(heldUsd)} />}
           </span>
           <span className="text-[11px] text-dim">
@@ -478,7 +478,7 @@ function EmptyState() {
         ))}
       </div>
       <div className="flex flex-col gap-2">
-        <h2 className="font-display text-[26px] leading-tight font-extrabold">Make your first card</h2>
+        <h2 className="font-display text-[min(26px,6.67vw)] leading-tight font-extrabold">Make your first card</h2>
         <p className="mx-auto max-w-[300px] text-sm text-muted-2">Cards are in-app pockets with their own currency. Keep money for a trip, a goal or your rewards apart.</p>
       </div>
       <ul className="flex w-full flex-col gap-2 text-left">
