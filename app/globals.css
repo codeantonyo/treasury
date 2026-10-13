@@ -1,26 +1,60 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Design tokens from the "Stellar App Concept" canvas. */
+@theme {
+  --color-ink: #07060b; /* app ground */
+  --color-paper: #f4f2fa; /* primary text, white buttons */
+  --color-on-paper: #140e22; /* text on white */
+  --color-violet: #7b3fff;
+  --color-violet-2: #a06bff;
+  --color-violet-deep: #3b1c7a;
+  --color-lilac: #c9b6ff;
+  --color-lilac-soft: #e2d7ff;
+  --color-muted: #9a93b3;
+  --color-muted-2: #b3abcc;
+  --color-soft: #c8c2da;
+  --color-dim: #6b6484;
+  --color-ember: #ffb86b; /* streak flame */
+  --color-bar: rgb(22 18 34 / 0.92);
+
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-display: var(--font-syne), sans-serif;
+
+  --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out for UI */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* iOS-like sheets */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Press feedback for anything tappable. */
+@utility press {
+  transition: transform 160ms var(--ease-snappy);
+  &:active:not(:disabled) {
+    transform: scale(0.97);
   }
 }
 
+/* Silver "chrome" text for big headings and numbers. */
+@utility chrome {
+  background: linear-gradient(180deg, #ffffff 0%, #d9d6e6 45%, #8f8aa6 55%, #e9e6f3 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Small uppercase section label (TOTAL BALANCE, TIERS, ...). */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: var(--color-muted);
+}
+
+html {
+  background: var(--color-ink);
+  color-scheme: dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ink);
+  color: var(--color-paper);
 }
