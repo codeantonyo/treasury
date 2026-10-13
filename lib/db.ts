@@ -31,6 +31,8 @@ export type User = Base & {
   maxTier: number; // highest tier ever reached (keeps unlocked card designs)
   lastHolding: { amount: number; xlm?: number; at: number } | null; // last good Stellar read, shown when Horizon is busy
   qualifiedReferrals: number;
+  telegramId?: string | null; // linked Telegram account (Mini App sign-in, bot messages)
+  telegramUsername?: string | null;
   createdAt: number;
 };
 
@@ -149,7 +151,7 @@ export type Tables = {
 type T = keyof Tables;
 
 const UNIQUE: { [K in T]?: (r: Tables[K]) => string[] } = {
-  users: (u) => [`email:${u.email.toLowerCase()}`, `tag:${u.tag.toLowerCase()}`, `ref:${u.referralCode}`],
+  users: (u) => [`email:${u.email.toLowerCase()}`, `tag:${u.tag.toLowerCase()}`, `ref:${u.referralCode}`, ...(u.telegramId ? [`tg:${u.telegramId}`] : [])],
   wallets: (w) => [`wallet:${w.userId}:${w.address}`, ...(w.status === "verified" ? [`verified:${w.address}`] : [])],
 };
 const keysOf = <K extends T>(t: K, r: Tables[K] | null) => (r ? (UNIQUE[t] as ((r: Tables[K]) => string[]) | undefined)?.(r) ?? [] : []);

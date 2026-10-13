@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Syne } from "next/font/google";
 import Motion from "./ui/motion";
+import TelegramBoot from "./ui/telegram-boot";
 import "./globals.css";
 
 const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${manrope.variable} ${syne.variable} antialiased`}>
       <body className="font-sans">
         <Motion>{children}</Motion>
+        <TelegramBoot />
       </body>
     </html>
   );

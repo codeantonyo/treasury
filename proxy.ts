@@ -17,8 +17,7 @@ export function proxy(req: NextRequest) {
   if (!req.cookies.has("xt_did"))
     res.cookies.set("xt_did", crypto.randomUUID(), {
       httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      ...(process.env.NODE_ENV === "production" ? { secure: true, sameSite: "none" as const, partitioned: true } : { sameSite: "lax" as const }),
       maxAge: 2 * 365 * 24 * 3600,
       path: "/",
     });

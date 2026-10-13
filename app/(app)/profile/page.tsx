@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { appUrl } from "@/lib/account";
 import { db } from "@/lib/db";
 import { memberView } from "@/lib/member";
 import { REFERRAL_REWARDS, rewardFor } from "@/lib/referrals";
 import { requireUser } from "@/lib/session";
 import { currentStreak, safeZone, weekStrip } from "@/lib/streak";
 import { fmt } from "@/lib/tiers";
+import { BOT_USERNAME } from "@/lib/telegram";
 import { MAIN_TOKEN } from "@/lib/tokens";
 import Avatar, { Skeleton } from "../../ui/avatar";
 import { CheckIcon, GearIcon } from "../../ui/icons";
@@ -99,7 +99,7 @@ async function Me() {
 }
 
 async function Referrals({ userId, code, qualified }: { userId: string; code: string; qualified: number }) {
-  const [refs, payouts, origin] = await Promise.all([db.find("referrals", "referrerId", userId), db.find("payouts", "userId", userId), appUrl()]);
+  const [refs, payouts] = await Promise.all([db.find("referrals", "referrerId", userId), db.find("payouts", "userId", userId)]);
   const friends = await Promise.all(
     refs.map(async (r) => {
       const [u, wallets] = await Promise.all([db.get("users", r.id), db.find("wallets", "userId", r.id)]);
@@ -115,7 +115,7 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
   friends.sort((a, b) => b.r.createdAt - a.r.createdAt);
   const paid = payouts.filter((p) => p.status === "sent").reduce((s, p) => s + p.amount, 0);
   const owed = payouts.filter((p) => p.status !== "sent").reduce((s, p) => s + p.amount, 0);
-  const link = `${origin}/register?ref=${code}`;
+  const link = `https://t.me/${BOT_USERNAME}?start=${code}`; // the bot's Open button carries the code to /register
 
   return (
     <section className="flex flex-col gap-4 rounded-[20px] border border-violet-2/40 bg-linear-135 from-violet/30 to-violet/8 p-4">

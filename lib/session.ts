@@ -20,12 +20,18 @@ function secret() {
 }
 const sign = (body: string) => createHmac("sha256", secret()).update(body).digest("base64url");
 
+/**
+ * Production: SameSite=None + Partitioned so the session also works inside Telegram Web, where the
+ * Mini App runs in a cross-site iframe. CSRF: server actions only accept same-origin requests.
+ */
+export const cookieMode = () =>
+  process.env.NODE_ENV === "production" ? ({ secure: true, sameSite: "none", partitioned: true } as const) : ({ secure: false, sameSite: "lax" } as const);
+
 export async function startSession(user: User) {
   const body = `${user.id}.${user.sessionEpoch}.${Date.now() + MAX_AGE * 1000}`;
   (await cookies()).set(COOKIE, `${body}.${sign(body)}`, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    ...cookieMode(),
     path: "/",
     maxAge: MAX_AGE,
   });

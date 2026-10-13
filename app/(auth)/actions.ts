@@ -6,6 +6,7 @@ import { Conflict, db, type User } from "@/lib/db";
 import { hashPassword, randomToken, verifyPassword } from "@/lib/password";
 import { currentUser, deviceId, endSession, requireUser, startSession } from "@/lib/session";
 import { sendMail } from "@/lib/mail";
+import { verifyInitData } from "@/lib/telegram";
 import { newTreasury } from "@/lib/treasury";
 import type { FormState } from "../ui/form";
 
@@ -142,4 +143,37 @@ async function setVerified(user: User) {
     const u = (await t.get("users", user.id))!;
     await t.put("users", { ...u, emailVerified: true });
   });
+}
+
+export type TgResult = { status: "in" | "linked" | "new" | "invalid" | "taken"; ref?: string };
+
+/**
+ * Mini App sign-in. Telegram linked to an account → signed in. Signed in but not linked → links this
+ * Telegram to the account (once: a Telegram account belongs to one member). Otherwise "new": the member
+ * logs in or registers once, then the next call links it.
+ */
+export async function telegramSignIn(initData: string): Promise<TgResult> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const tg = token && initData.length < 4096 ? verifyInitData(initData, token) : null;
+  if (!tg) return { status: "invalid" };
+  const tgId = String(tg.id);
+
+  const linked = (await db.find("users", "telegramId", tgId))[0];
+  if (linked) {
+    await startSession(linked);
+    return { status: "in" };
+  }
+  const me = await currentUser();
+  if (!me) return { status: "new", ref: tg.startParam && /^[A-Z0-9-]{4,20}$/.test(tg.startParam) ? tg.startParam : undefined };
+  try {
+    await db.tx(async (t) => {
+      const u = (await t.get("users", me.id))!;
+      if (u.telegramId) throw new Conflict("tg:other");
+      await t.put("users", { ...u, telegramId: tgId, telegramUsername: tg.username });
+    });
+  } catch (e) {
+    if (e instanceof Conflict) return { status: "taken" };
+    throw e;
+  }
+  return { status: "linked" };
 }
