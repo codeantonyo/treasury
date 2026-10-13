@@ -99,8 +99,16 @@ async function Sections() {
         <div className="flex flex-col divide-y divide-white/8">
           <Toggle pref="hideBalances" label="Hide balances" hint="Show •••• instead of amounts, for screenshots and public places." initial={user.prefs.hideBalances} />
           <Toggle pref="emailNotifs" label="Email updates" hint="Referral rewards and tier changes." initial={user.prefs.emailNotifs} />
-          <Toggle pref="tgNotifs" label="Telegram messages" hint="From the XLM TREASURY bot, once Telegram is connected." initial={user.prefs.tgNotifs} />
+          <Toggle pref="tgNotifs" label="Telegram messages" hint={user.telegramId ? "From @XLMTreasuryBot." : "From @XLMTreasuryBot, once Telegram is connected."} initial={user.prefs.tgNotifs} />
         </div>
+      </Card>
+
+      <Card title="TELEGRAM">
+        <p className="text-xs leading-snug text-muted-2">
+          {user.telegramId
+            ? `Connected${user.telegramUsername ? ` as @${user.telegramUsername}` : ""}. Opening @XLMTreasuryBot signs you into this same account, so balances match everywhere.`
+            : "Not connected. Open @XLMTreasuryBot and log in with this account once: the app in Telegram then shows the same account and balances as here."}
+        </p>
       </Card>
 
       <Card title="SECURITY">

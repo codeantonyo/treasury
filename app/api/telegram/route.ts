@@ -24,7 +24,7 @@ function welcome(app: string, firstName: string | undefined, ref: string | null)
     inline_keyboard: [
       [{ text: "🚀 Open XLM TREASURY", web_app: { url: `${app}${ref ? `/register?ref=${ref}` : "/"}` } }],
       [
-        { text: `📈 ${MAIN_TOKEN.code}`, url: `https://stellar.expert/explorer/public/asset/${MAIN_TOKEN.code}-${MAIN_TOKEN.issuer}` },
+        { text: `📈 Buy ${MAIN_TOKEN.code}`, url: `https://lobstr.co/trade/${MAIN_TOKEN.code}:${MAIN_TOKEN.issuer}` },
         { text: "🌐 Website", url: `https://${MAIN_TOKEN.homeDomain ?? "xlmtreasuryv2.com"}` },
       ],
     ],

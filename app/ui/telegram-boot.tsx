@@ -68,7 +68,7 @@ export default function TelegramBoot() {
       />
       {note && (
         <div role="status" className="fixed inset-x-4 bottom-[max(16px,env(safe-area-inset-bottom))] z-50 mx-auto max-w-[358px] rounded-2xl border border-white/12 bg-[#151221]/95 px-4 py-3 text-center text-[13px] font-semibold text-muted-2 backdrop-blur">
-          {note === "new" ? "Log in or create your account once. Next time Telegram signs you in." : "This Telegram is linked to another XLM TREASURY account."}
+          {note === "new" ? "Already have an account? Log in with it, so Telegram and the website share the same balances. Next time Telegram signs you in." : "This Telegram is linked to another XLM TREASURY account."}
         </div>
       )}
     </>

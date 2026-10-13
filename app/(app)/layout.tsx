@@ -1,3 +1,4 @@
+import RefreshOnReturn from "../ui/refresh-on-return";
 import TabBar from "../ui/tab-bar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -8,6 +9,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <TabBar />
+      <RefreshOnReturn />
     </>
   );
 }
