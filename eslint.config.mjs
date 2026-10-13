@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // teaser video projects (/brag output, not part of the app)
+    "brag-output*/**",
   ]),
 ]);
 

@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local JSON database
 /.data
+
+# teaser video project (/brag output)
+/brag-output*

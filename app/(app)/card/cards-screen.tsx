@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import { formatMoney, usd } from "@/lib/currencies";
 import type { ActivityRow } from "@/lib/money-view";
 import { closeCard, editCard, freezeCard, setRewardDestination, unfreezeCard, type MoneyResult } from "../actions";
-import CardFace, { CardBack } from "../../ui/card-face";
+import { CARDS } from "@/lib/cards";
+import CardFace, { CardBack, EngravedMark } from "../../ui/card-face";
 import { CardIcon, CheckIcon, CopyIcon, DotsIcon, GiftIcon, LockIcon, PencilIcon, PlusIcon, SendIcon, SnowIcon, StarIcon, SwapIcon, XIcon } from "../../ui/icons";
 import {
   Activity,
@@ -59,6 +60,7 @@ export default function CardsScreen({
   initialId,
   openTopUp,
   heldUsd,
+  tag,
 }: {
   cards: CardData[];
   pockets: PocketData[];
@@ -70,6 +72,7 @@ export default function CardsScreen({
   initialId: string | null;
   openTopUp: boolean;
   heldUsd: number | null;
+  tag: string;
 }) {
   // Open on: the card asked for, else the one rewards land on, else the first active one.
   const [sel, setSel] = useState(() => {
@@ -84,7 +87,7 @@ export default function CardsScreen({
   const [flipped, setFlipped] = useState<string | null>(null); // id of the card showing its back
   const card = cards[Math.min(sel, cards.length - 1)];
 
-  if (!card) return <EmptyState />;
+  if (!card) return <EmptyState tag={tag} />;
   const here = `card:${card.id}`;
   const frozen = card.status === "frozen";
   const names = new Map(pockets.map((p) => [p.value, p.label]));
@@ -464,18 +467,37 @@ export function FinishPicker({ designs, value, onChange }: { designs: DesignData
   );
 }
 
-function EmptyState() {
+/** No cards yet: a demo card with the member's @tag, the other finishes peeking out behind it. */
+function EmptyState({ tag }: { tag: string }) {
   return (
     <div className="flex flex-col items-center gap-7 text-center">
       <span className="eyebrow self-start">CARDS</span>
-      <div className="relative -mt-2 h-[205px] w-full max-w-[300px]" aria-hidden="true">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="absolute inset-x-[8%] top-0 aspect-[1.586] rounded-[22px] border border-dashed border-white/20"
-            style={{ transform: `translateY(${i * 22}px) scale(${1 - (2 - i) * 0.06}) rotate(${(i - 1) * -3}deg)`, background: i === 2 ? "linear-gradient(125deg, #1a1030, #3b1c7a 45%, #7b3fff 80%, #c9b6ff)" : "rgba(255,255,255,0.03)", opacity: i === 2 ? 1 : 0.6 }}
-          />
-        ))}
+      <div className="relative -mt-2 h-[226px] w-full max-w-[320px]" aria-hidden="true">
+        {[
+          { id: "obsidian", style: "translateY(0px) scale(0.86) rotate(5deg)" },
+          { id: "silver", style: "translateY(16px) scale(0.93) rotate(-3.5deg)" },
+        ].map((c) => {
+          const d = CARDS.find((x) => x.id === c.id)!;
+          return (
+            <div
+              key={c.id}
+              className="absolute inset-x-[6%] top-0 aspect-[1.586] overflow-hidden rounded-[22px]"
+              style={{ transform: c.style, background: d.card, boxShadow: `inset 0 0 0 1px ${d.border}, 0 18px 40px rgba(0,0,0,0.45)` }}
+            >
+              <EngravedMark className="absolute top-[52%] right-[6%] h-[62%] -translate-y-1/2" />
+            </div>
+          );
+        })}
+        <motion.div
+          className="absolute inset-x-[6%] top-[38px]"
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <CardFace design="violet" name={`@${tag}`} display="€250.00" currency="EUR" last4="2026" />
+          <span className="absolute right-[16px] bottom-[18px] rounded-full border border-white/30 bg-black/30 px-2.5 py-1 text-[10px] font-extrabold tracking-[0.2em] text-paper">
+            DEMO
+          </span>
+        </motion.div>
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-display text-[min(26px,6.67vw)] leading-tight font-extrabold">Make your first card</h2>

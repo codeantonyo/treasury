@@ -45,6 +45,7 @@ async function Body({ searchParams }: { searchParams: PageProps<"/card">["search
         initialId={typeof card === "string" ? card : null}
         openTopUp={action === "topup"}
         heldUsd={mv.cardsUsd}
+        tag={user.tag}
       />
     </div>
   );
