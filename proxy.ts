@@ -5,7 +5,7 @@ const PUBLIC = ["/login", "/register", "/forgot", "/reset"];
 
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
-  const open = PUBLIC.includes(pathname) || pathname.startsWith("/api/");
+  const open = PUBLIC.includes(pathname) || pathname.startsWith("/api/") || pathname.startsWith("/brand/");
 
   let res = NextResponse.next();
   if (!open && !req.cookies.has("xt_session")) {

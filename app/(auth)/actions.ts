@@ -81,7 +81,15 @@ export async function forgot(_: FormState, f: FormData): Promise<FormState> {
     const token = randomToken();
     await saveCode(user.id, "reset-password", token, 30 * 60_000);
     const link = `${await appUrl()}/reset?u=${user.id}&t=${token}`;
-    await sendMail(user.email, "Reset your XLM TREASURY password", `Hi ${user.name},\n\nReset your password here (valid for 30 minutes):\n${link}\n\nIf you didn't ask for this, ignore this email. Your password stays the same.`);
+    await sendMail(user.email, {
+      subject: "Reset your XLM TREASURY password",
+      preheader: "Use this link within 30 minutes to set a new password.",
+      title: "Reset your password",
+      name: user.name,
+      lines: ["We got a request to reset the password for your XLM TREASURY account. Tap the button to choose a new one."],
+      button: { label: "Set a new password", url: link },
+      footnote: "The link works once and expires in 30 minutes. If you didn't ask for this, ignore this email: your password stays the same.",
+    });
   }
   return { ok: "If that email has an account, we've sent a reset link. Check your inbox.", values: { email } };
 }

@@ -68,7 +68,16 @@ export async function consumeCode(userId: string, kind: Code["kind"], secret: st
 export async function sendVerification(user: Pick<User, "id" | "email" | "name">, email = user.email, kind: Code["kind"] = "verify-email") {
   const code = randomCode();
   await saveCode(user.id, kind, code, 15 * 60_000, kind === "change-email" ? { newEmail: email } : {});
-  await sendMail(email, `${code} is your XLM TREASURY code`, `Hi ${user.name},\n\nYour verification code is ${code}\n\nIt expires in 15 minutes. If you didn't ask for it, ignore this email.`);
+  const change = kind === "change-email";
+  await sendMail(email, {
+    subject: `${code} is your XLM TREASURY code`,
+    preheader: `Your code is ${code}. It expires in 15 minutes.`,
+    title: change ? "Confirm your new email" : "Verify your email",
+    name: user.name,
+    lines: [change ? "Enter this code in XLM TREASURY to switch your account to this email address." : "Enter this code in XLM TREASURY to verify your email and unlock referral rewards."],
+    code,
+    footnote: "The code expires in 15 minutes. If you didn't ask for it, you can ignore this email.",
+  });
 }
 
 export async function appUrl() {
