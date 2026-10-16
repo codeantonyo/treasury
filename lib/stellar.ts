@@ -70,25 +70,39 @@ export async function hasTrustline(address: string, token: Token = MAIN_TOKEN): 
   return !!acc && (acc.balances as Json[]).some((b) => isToken(b, token));
 }
 
+/** How long after a proof code is issued its payment still counts (judged by when the payment was made). */
+export const PROOF_WINDOW = 24 * 3600_000;
+export type ProofCode = { memo: string; at: number };
+
 /**
- * Wallet proof: a payment of at least 1 XLMTREASURY2 (or 1 XLM) from `from` to `treasury`
- * with text memo `memo`, made at or after `since`. Returns the transaction hash or null.
+ * Does this Horizon payment record prove the wallet? At least 1 XLMTREASURY2 (or 1 XLM) from `from`
+ * to `treasury`, successful, with the text memo of one of the wallet's codes, made from a minute
+ * before that code was issued until PROOF_WINDOW after. The time that counts is the payment's,
+ * not when the member taps "verify".
  */
-export async function findProofPayment(o: { treasury: string; from: string; memo: string; since: number }): Promise<string | null> {
-  let url: string | null = `/accounts/${o.treasury}/payments?order=desc&limit=200&join=transactions`;
+export function isProof(p: Json, o: { treasury: string; from: string; codes: ProofCode[] }): boolean {
+  const amountOk = Number(p.amount) >= 1 && (p.asset_type === "native" || (p.asset_code === MAIN_TOKEN.code && p.asset_issuer === MAIN_TOKEN.issuer));
+  if (p.type !== "payment" || p.from !== o.from || p.to !== o.treasury || !amountOk || p.transaction_successful === false) return false;
+  if (p.transaction?.memo_type !== "text") return false;
+  const at = Date.parse(p.created_at);
+  return o.codes.some((c) => c.memo === p.transaction.memo && at >= c.at - 60_000 && at <= c.at + PROOF_WINDOW);
+}
+
+/**
+ * Wallet proof, searched in the member's own payment history (newest first, up to 1,000 payments,
+ * back to a minute before the oldest code). Returns the transaction hash or null. Throws StellarBusy.
+ */
+export async function findProofPayment(o: { treasury: string; from: string; codes: ProofCode[] }): Promise<string | null> {
+  if (!o.codes.length) return null;
+  const since = Math.min(...o.codes.map((c) => c.at)) - 60_000;
+  let url: string | null = `/accounts/${o.from}/payments?order=desc&limit=200&join=transactions`;
   for (let page = 0; url && page < 5; page++) {
     const r = await horizon(url);
     if (!r) return null;
     const recs = r._embedded.records as Json[];
     for (const p of recs) {
-      if (Date.parse(p.created_at) < o.since) return null;
-      const amountOk =
-        Number(p.amount) >= 1 && (p.asset_type === "native" || (p.asset_code === MAIN_TOKEN.code && p.asset_issuer === MAIN_TOKEN.issuer));
-      if (
-        p.type === "payment" && p.from === o.from && p.to === o.treasury && amountOk &&
-        p.transaction_successful !== false && p.transaction?.memo_type === "text" && p.transaction?.memo === o.memo
-      )
-        return p.transaction_hash;
+      if (Date.parse(p.created_at) < since) return null;
+      if (isProof(p, o)) return p.transaction_hash;
     }
     url = recs.length === 200 ? r._links.next.href : null;
   }

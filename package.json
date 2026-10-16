@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "node scripts/check-card-number.ts && node scripts/check-tiers.ts && node scripts/check-db.ts && node scripts/check-referrals.ts && node scripts/check-streak.ts && node scripts/check-treasury.ts && node scripts/check-keypad.ts && node scripts/check-sim-rewards.ts && node scripts/check-telegram.ts",
+    "check": "node scripts/check-card-number.ts && node scripts/check-tiers.ts && node scripts/check-db.ts && node scripts/check-referrals.ts && node scripts/check-streak.ts && node scripts/check-treasury.ts && node scripts/check-keypad.ts && node scripts/check-sim-rewards.ts && node scripts/check-telegram.ts && node scripts/check-proof.ts",
     "pay-referrals": "node --env-file-if-exists=.env scripts/pay-referrals.ts",
     "telegram-setup": "node --env-file-if-exists=.env scripts/telegram-setup.ts"
   },

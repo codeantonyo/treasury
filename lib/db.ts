@@ -42,7 +42,8 @@ export type Wallet = Base & {
   primary: boolean;
   status: "pending" | "verified";
   memo: string; // proof-payment memo
-  memoAt: number; // when the memo was issued (30 min window)
+  memoAt: number; // when the memo was issued (PROOF_WINDOW in lib/stellar.ts)
+  oldMemos?: { memo: string; at: number }[]; // earlier codes for this wallet; a payment with one still counts
   proofTx: string | null;
   createdAt: number;
   verifiedAt: number | null;

@@ -6,11 +6,10 @@ import { consumeCode, EMAIL_RE, MAX_WALLETS, MIN_PASSWORD, requalifyLater, sendV
 import { Conflict, db, type User } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { requireUser, startSession } from "@/lib/session";
-import { findProofPayment, isAddress, StellarBusy } from "@/lib/stellar";
+import { findProofPayment, isAddress, PROOF_WINDOW, StellarBusy } from "@/lib/stellar";
 import type { FormState } from "../../../ui/form";
 
 const s = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
-const PROOF_WINDOW = 30 * 60_000;
 
 async function updateMe(fn: (u: User) => User) {
   const me = await requireUser();
@@ -127,7 +126,9 @@ export async function renewProof(id: string) {
   const me = await requireUser();
   await db.tx(async (t) => {
     const w = await t.get("wallets", id);
-    if (w?.userId === me.id && w.status === "pending") await t.put("wallets", { ...w, memo: newMemo(), memoAt: Date.now() });
+    // Keep the old code: a payment already sent with it still proves the wallet.
+    if (w?.userId === me.id && w.status === "pending")
+      await t.put("wallets", { ...w, memo: newMemo(), memoAt: Date.now(), oldMemos: [...(w.oldMemos ?? []), { memo: w.memo, at: w.memoAt }].slice(-10) });
   });
   refresh();
 }
@@ -139,15 +140,16 @@ export async function verifyWallet(id: string): Promise<{ error?: string; ok?: s
   if (w.status === "verified") return { ok: "Already verified." };
   const treasury = process.env.TREASURY_ADDRESS;
   if (!treasury) return { error: "Wallet verification isn't switched on yet. Please try again later." };
-  if (Date.now() > w.memoAt + PROOF_WINDOW) return { error: "This code expired (30 minutes). Get a new code and send the payment again." };
 
+  // Look for the payment first: what counts is when it was sent, not when "verify" is tapped.
   let tx: string | null;
   try {
-    tx = await findProofPayment({ treasury, from: w.address, memo: w.memo, since: w.memoAt - 60_000 });
+    tx = await findProofPayment({ treasury, from: w.address, codes: [...(w.oldMemos ?? []), { memo: w.memo, at: w.memoAt }] });
   } catch (e) {
     if (e instanceof StellarBusy) return { error: e.message };
     throw e;
   }
+  if (!tx && Date.now() > w.memoAt + PROOF_WINDOW) return { error: "This code expired (24 hours). Get a new code and send the payment again." };
   if (!tx) return { error: "We can't see the payment yet. Check the amount and memo, wait a few seconds and try again." };
   return markVerified(me.id, id, tx);
 }

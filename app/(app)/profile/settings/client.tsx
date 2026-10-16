@@ -92,13 +92,13 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
   );
 }
 
-type W = { id: string; address: string; primary: boolean; status: "pending" | "verified"; memo: string; memoAt: number };
+type W = { id: string; address: string; primary: boolean; status: "pending" | "verified"; memo: string; expiresAt: number };
 
 export function WalletRow({ w, treasury, dev }: { w: W; treasury: string | null; dev: boolean }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ error?: string; ok?: string }>({});
   const short = `${w.address.slice(0, 6)}…${w.address.slice(-6)}`;
-  const expires = new Date(w.memoAt + 30 * 60_000);
+  const expires = new Date(w.expiresAt);
   const sep7 = treasury && `web+stellar:pay?destination=${treasury}&amount=1&memo=${w.memo}&memo_type=MEMO_TEXT`;
 
   return (
@@ -132,7 +132,7 @@ export function WalletRow({ w, treasury, dev }: { w: W; treasury: string | null;
             <>
               <p>
                 From <b className="text-paper">this wallet</b>, send <b className="text-paper">1 {MAIN_TOKEN.code}</b> (or 1 XLM) to the address below with
-                this memo, before {expires.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. It isn&apos;t refunded.
+                this memo, within 24 hours (before {expires.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}). It isn&apos;t refunded.
               </p>
               <div className="flex items-center gap-2">
                 <span className="min-w-0 grow truncate font-mono text-[11px] text-paper">{treasury}</span>

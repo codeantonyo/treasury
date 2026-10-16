@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PROOF_WINDOW } from "@/lib/stellar";
 import { Suspense } from "react";
 import { MAX_WALLETS } from "@/lib/account";
 import { db } from "@/lib/db";
@@ -57,7 +58,7 @@ async function Sections() {
             {wallets.map((w) => (
               <WalletRow
                 key={w.id}
-                w={{ id: w.id, address: w.address, primary: w.primary, status: w.status, memo: w.memo, memoAt: w.memoAt }}
+                w={{ id: w.id, address: w.address, primary: w.primary, status: w.status, memo: w.memo, expiresAt: w.memoAt + PROOF_WINDOW }}
                 treasury={process.env.TREASURY_ADDRESS ?? null}
                 dev={dev}
               />
