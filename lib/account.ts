@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { db, type Code, type User } from "./db";
 import { sendMail } from "./mail";
+import { maybeRunPayouts } from "./payout-runner";
 import { randomCode, sha256 } from "./password";
 import { qualify } from "./referrals";
 import { boughtSince, totalHolding } from "./stellar";
@@ -90,7 +91,8 @@ export async function appUrl() {
 export function requalifyLater(userId: string) {
   after(async () => {
     try {
-      await qualify(db, userId, { holding: totalHolding, bought: boughtSince });
+      const r = await qualify(db, userId, { holding: totalHolding, bought: boughtSince });
+      if (r.status === "qualified") await maybeRunPayouts();
     } catch {
       // Stellar busy or similar: the cron run picks it up later.
     }

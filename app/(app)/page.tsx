@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { after } from "next/server";
 import { usd } from "@/lib/currencies";
+import { maybeRunPayouts } from "@/lib/payout-runner";
 import { fluid } from "@/lib/format";
 import { db } from "@/lib/db";
 import { tokenPriceXlm } from "@/lib/fx";
@@ -65,6 +67,7 @@ export default function Home() {
 
 async function Header() {
   const user = await requireUser();
+  after(() => maybeRunPayouts()); // due referral payouts go out as members use the app (at most every 15 min)
   const streak = currentStreak(user.streak, safeZone(user.timeZone));
   const unread = (await db.find("notifications", "userId", user.id)).filter((n) => !n.read).length;
   return (

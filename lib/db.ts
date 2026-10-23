@@ -139,7 +139,11 @@ export type Movement = Base & {
 
 export type Notification = Base & { userId: string; at: number; text: string; read: boolean };
 
+/** Small system rows (e.g. "payout-runner": the lease that keeps payout runs one at a time). */
+export type Meta = Base & { until?: number; lastRun?: number };
+
 export type Tables = {
+  meta: Meta;
   users: User;
   wallets: Wallet;
   codes: Code;

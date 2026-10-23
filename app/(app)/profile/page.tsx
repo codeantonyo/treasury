@@ -109,7 +109,8 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
         : !u?.emailVerified ? "Needs to verify email"
         : !wallets.some((w) => w.status === "verified") ? "Needs to link a wallet"
         : "Needs to buy 100+ on the DEX";
-      return { r, name: u?.name ?? "Member", tag: u?.tag ?? "", waiting };
+      const payout = payouts.find((p) => p.id === `ref:${r.id}`);
+      return { r, name: u?.name ?? "Member", tag: u?.tag ?? "", waiting, payout };
     }),
   );
   friends.sort((a, b) => b.r.createdAt - a.r.createdAt);
@@ -160,7 +161,7 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
 
       {friends.length > 0 && (
         <ul className="flex flex-col divide-y divide-white/8">
-          {friends.map(({ r, name, tag, waiting }) => (
+          {friends.map(({ r, name, tag, waiting, payout }) => (
             <li key={r.id} className="flex items-center justify-between gap-3 py-2">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-[13px] font-bold">{name}</span>
@@ -168,9 +169,19 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
               </div>
               {waiting ? (
                 <span className="shrink-0 text-[11px] font-bold text-muted-2">{waiting}</span>
+              ) : payout?.status === "sent" && payout.txHash ? (
+                <a
+                  href={`https://stellar.expert/explorer/public/tx/${payout.txHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex shrink-0 items-center gap-1 text-xs font-extrabold text-lilac-soft tabular-nums"
+                >
+                  <CheckIcon size={14} />+{fmt(r.amount ?? 0)} paid
+                </a>
               ) : (
-                <span className="flex shrink-0 items-center gap-1 text-xs font-extrabold text-lilac-soft tabular-nums">
-                  <CheckIcon size={14} />+{fmt(r.amount ?? 0)}
+                <span className="flex min-w-0 shrink flex-col items-end text-right">
+                  <span className="text-xs font-extrabold text-lilac-soft tabular-nums">+{fmt(r.amount ?? 0)} on the way</span>
+                  {payout?.error && <span className="text-[10.5px] text-muted">{payout.error.startsWith("{") ? "Retrying" : payout.error[0].toUpperCase() + payout.error.slice(1)}</span>}
                 </span>
               )}
             </li>
@@ -180,7 +191,7 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
 
       <p className="text-[11px] leading-snug text-muted-2">
         A friend counts once they sign up with your code, verify their email, link a Stellar wallet, and buy at least 100 {MAIN_TOKEN.code} on the Stellar DEX after signing up (and still hold Tier 1).
-        Rewards are paid to your primary wallet in {MAIN_TOKEN.code}.
+        Rewards are sent automatically to your primary wallet in {MAIN_TOKEN.code}, 7 days after your friend qualifies, as long as they still hold 100+. Your wallet needs the {MAIN_TOKEN.code} trustline.
       </p>
     </section>
   );

@@ -1,9 +1,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import { autoPayoutsOn, maybeRunPayouts } from "@/lib/payout-runner";
+import { stellarDeps } from "@/lib/payout-stellar";
+import { runPayouts } from "@/lib/payouts";
 import { qualify } from "@/lib/referrals";
 import { boughtSince, StellarBusy, totalHolding } from "@/lib/stellar";
 
-// Re-checks every pending referral. GET /api/cron/referrals[?dry=1]
+// Re-checks every pending referral, then sends due referral payouts (when PAYOUTS_AUTO=on).
+// GET /api/cron/referrals[?dry=1]: dry shows what would qualify and what would be paid, sending nothing.
 // Authorization: Bearer CRON_SECRET (Vercel Cron sends it automatically).
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
@@ -27,5 +31,11 @@ export async function GET(req: Request) {
       counts.stellarBusy = (counts.stellarBusy ?? 0) + 1; // nothing written; next run retries
     }
   }
-  return Response.json({ dry, checked: pending.length, counts, qualified });
+  // Payouts: dry = report only (reads Stellar, sends nothing); otherwise a real pass when switched on.
+  let payouts: unknown = { auto: autoPayoutsOn() };
+  if (dry && process.env.PAYOUT_SECRET) {
+    const d = stellarDeps(db, process.env.PAYOUT_SECRET);
+    payouts = { auto: autoPayoutsOn(), account: d.account, balance: await d.balance().catch(() => null), ...(await runPayouts(d, true)) };
+  } else if (!dry) payouts = { auto: autoPayoutsOn(), ...((await maybeRunPayouts(0)) ?? { ran: false }) };
+  return Response.json({ dry, checked: pending.length, counts, qualified, payouts });
 }
