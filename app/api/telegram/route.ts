@@ -16,7 +16,7 @@ function welcome(app: string, firstName: string | undefined, ref: string | null)
     `💎 <b>Hold ${MAIN_TOKEN.code}</b> and climb 12 tiers`,
     "🔥 <b>Collect your daily streak</b>, boosted by your tier",
     "💳 <b>In-app cards</b> for your rewards",
-    `🤝 <b>Invite friends</b> and earn up to 1,000 ${MAIN_TOKEN.code} each`,
+    `🤝 <b>Invite friends</b>: you both get a 200% bonus on their first ${MAIN_TOKEN.code} purchase`,
     "",
     ref ? `🎁 You were invited: your code <code>${esc(ref)}</code> is filled in for you.` : "Link your Stellar wallet in a minute. We never ask for your secret key.",
   ].join("\n");

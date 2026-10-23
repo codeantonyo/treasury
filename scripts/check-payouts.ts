@@ -111,7 +111,32 @@ now += DAY;
 await runPayouts(deps);
 assert.equal((await status("f4")).status, "sent");
 
-// 9. one run at a time
+// 9. the friend's own bonus (refb:) goes to the friend, only while they still hold what they bought
+await db.tx(async (t) => {
+  await t.insert("referrals", { id: "f6", referrerId: "r1", status: "qualified", amount: 600, purchase: { amount: 300, xlm: 150, at: 0 }, rule: "bonus200", createdAt: now - HOLD_MS - 1, qualifiedAt: now - HOLD_MS - 1 });
+  await t.insert("payouts", { id: "refb:f6", userId: "f6", kind: "referral-bonus", amount: 600, status: "queued", memo: "XT-RFB-f6", createdAt: now - HOLD_MS - 1 });
+});
+await w("w-f6x", "f6", "GF6");
+chain.trust.add("GF6");
+now += DAY;
+chain.hold = 299;
+await runPayouts(deps);
+assert.match((await db.get("payouts", "refb:f6"))!.error ?? "", /no longer holds the 300/);
+chain.hold = 300;
+await runPayouts(deps);
+assert.equal((await db.get("payouts", "refb:f6"))!.status, "sent");
+assert.deepEqual(chain.sent.at(-1), { dest: "GF6", amount: 600, memo: "XT-RFB-f6" });
+assert.match((await db.find("notifications", "userId", "f6"))[0].text, /welcome bonus/);
+
+// 10. a single payout above the daily limit is never automatic; the owner sends it by hand (--allow-large)
+await queue("big", "r2", DAILY_CAP + 1, now - HOLD_MS - 1);
+now += DAY;
+await runPayouts(deps);
+assert.match((await status("big")).error ?? "", /by hand/);
+await runPayouts(deps, false, { allowLarge: true });
+assert.equal((await status("big")).status, "sent");
+
+// 11. one run at a time
 await db.tx(async (t) => t.put("meta", { ...(await t.get("meta", "payout-runner"))!, until: now + 60_000 }));
 assert.equal((await runPayouts(deps)).ran, false, "a second concurrent run backs off");
 console.log("payouts: ok");

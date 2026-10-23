@@ -37,7 +37,7 @@ export type Outcome =
   | { id: string; result: "failed"; amount: number; why: string };
 
 /** Pay every queued referral payout that is due. With dry=true nothing is written or sent. */
-export async function runPayouts(d: Deps, dry = false): Promise<{ ran: boolean; outcomes: Outcome[] }> {
+export async function runPayouts(d: Deps, dry = false, opts: { allowLarge?: boolean } = {}): Promise<{ ran: boolean; outcomes: Outcome[] }> {
   if (!dry && !(await takeLease(d))) return { ran: false, outcomes: [] };
   const outcomes: Outcome[] = [];
   try {
@@ -45,7 +45,7 @@ export async function runPayouts(d: Deps, dry = false): Promise<{ ran: boolean; 
     const sent24h = (await d.db.find("payouts", "status", "sent")).filter((p) => (p.sentAt ?? 0) > d.now() - 86_400_000).reduce((s, p) => s + p.amount, 0);
     let budget = DAILY_CAP - sent24h;
     for (const p of due) {
-      const o = await pay(d, p, budget, dry);
+      const o = await pay(d, p, budget, dry, !!opts.allowLarge);
       if (o.result === "sent" || (o.result === "waiting" && o.why === "would send")) budget -= p.amount;
       outcomes.push(o);
     }
@@ -55,7 +55,7 @@ export async function runPayouts(d: Deps, dry = false): Promise<{ ran: boolean; 
   return { ran: true, outcomes };
 }
 
-async function pay(d: Deps, p: Payout, budget: number, dry: boolean): Promise<Outcome> {
+async function pay(d: Deps, p: Payout, budget: number, dry: boolean, allowLarge: boolean): Promise<Outcome> {
   const base = { id: p.id, amount: p.amount };
   const wait = (why: string) => ({ ...base, result: "waiting" as const, why });
 
@@ -67,17 +67,19 @@ async function pay(d: Deps, p: Payout, budget: number, dry: boolean): Promise<Ou
   }
   if (p.status === "sending" && d.now() < (p.sendingUntil ?? 0)) return wait("in flight, checked again next run");
 
-  // 2. Holding period: 7 days after the friend qualified, and they still hold 100+.
-  const ref = await d.db.get("referrals", p.id.replace(/^ref:/, ""));
+  // 2. Holding period: 7 days after the friend qualified, and they still hold what they bought.
+  const ref = await d.db.get("referrals", p.id.replace(/^refb?:/, ""));
   const due = (ref?.qualifiedAt ?? p.createdAt) + HOLD_MS;
   if (d.now() < due) return note(d, p, dry, wait(`holding period until ${new Date(due).toISOString().slice(0, 10)}`));
   if (ref) {
     const friendWallets = (await d.db.find("wallets", "userId", ref.id)).filter((w) => w.status === "verified").map((w) => w.address);
-    if ((await d.holding(friendWallets)) < MIN_HOLDING) return note(d, p, dry, wait("the invited friend no longer holds 100 XLMTREASURY2"));
+    const kept = ref.purchase?.amount ?? MIN_HOLDING;
+    if ((await d.holding(friendWallets)) < kept) return note(d, p, dry, wait(`the invited friend no longer holds the ${kept} XLMTREASURY2 they bought`));
   }
 
-  // 3. Daily cap.
-  if (p.amount > budget) return note(d, p, dry, wait("daily payout limit reached, continues tomorrow"));
+  // 3. Daily cap. A single payout above the cap is never automatic: the owner sends it by hand.
+  if (p.amount > DAILY_CAP && !allowLarge) return note(d, p, dry, wait("above the automatic limit, the team sends it by hand"));
+  if (p.amount > budget && !allowLarge) return note(d, p, dry, wait("daily payout limit reached, continues tomorrow"));
 
   // 4. Where to: the referrer's primary verified wallet, which must have the trustline.
   const wallets = (await d.db.find("wallets", "userId", p.userId)).filter((w) => w.status === "verified");
@@ -116,7 +118,8 @@ async function finish(d: Deps, id: string, tx: string) {
     const r = await t.get("payouts", id);
     if (!r || r.status === "sent") return;
     await t.put("payouts", { ...r, status: "sent", txHash: tx, sentAt: d.now(), error: undefined });
-    await t.insert("notifications", { id: randomUUID(), userId: r.userId, at: d.now(), text: `+${r.amount} XLMTREASURY2 referral reward sent to your wallet`, read: false });
+    const what = r.kind === "referral-bonus" ? "welcome bonus" : "referral reward";
+    await t.insert("notifications", { id: randomUUID(), userId: r.userId, at: d.now(), text: `+${r.amount.toLocaleString("en-US")} XLMTREASURY2 ${what} sent to your wallet`, read: false });
   });
 }
 

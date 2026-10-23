@@ -123,7 +123,7 @@ export async function findSentWithMemo(from: string, memo: string, pages = 3): P
   return null;
 }
 
-export type Buy = { account: string; at: number; amount: number };
+export type Buy = { account: string; at: number; amount: number; xlm: number };
 const buysCache = new Map<string, { at: number; buys: Buy[] }>();
 
 /**
@@ -145,7 +145,7 @@ export async function tokenBuys(t: Token = MAIN_TOKEN): Promise<Buy[]> {
     for (const x of recs) {
       // base = the token. base_is_seller: the base side sold it, so the counter side bought it.
       const buyer = x.base_is_seller ? x.counter_account : x.base_account;
-      if (buyer) buys.push({ account: buyer, at: Date.parse(x.ledger_close_time), amount: Number(x.base_amount) });
+      if (buyer) buys.push({ account: buyer, at: Date.parse(x.ledger_close_time), amount: Number(x.base_amount), xlm: Number(x.counter_amount) });
     }
     url = recs.length === 200 ? r._links.next.href : null;
   }
@@ -157,6 +157,25 @@ export async function tokenBuys(t: Token = MAIN_TOKEN): Promise<Buy[]> {
 export async function boughtSince(addresses: string[], since: number): Promise<number> {
   const mine = new Set(addresses);
   return (await tokenBuys()).filter((b) => mine.has(b.account) && b.at >= since).reduce((s, b) => s + b.amount, 0);
+}
+
+export type Purchase = { amount: number; xlm: number; at: number };
+
+/**
+ * These wallets' first XLMTREASURY2 purchase on the DEX at or after `since` that cost at least
+ * `minXlm`, or null. Trades in the same ledger count as one purchase (one order filled in pieces). Strict.
+ */
+export async function firstPurchase(addresses: string[], since: number, minXlm: number): Promise<Purchase | null> {
+  const mine = new Set(addresses);
+  const byLedger = new Map<number, Purchase>();
+  for (const b of await tokenBuys()) {
+    if (!mine.has(b.account) || b.at < since) continue;
+    const p = byLedger.get(b.at) ?? { amount: 0, xlm: 0, at: b.at };
+    p.amount += b.amount;
+    p.xlm += b.xlm;
+    byLedger.set(b.at, p);
+  }
+  return [...byLedger.values()].sort((a, b) => a.at - b.at).find((p) => p.xlm >= minXlm) ?? null;
 }
 
 /** When these wallets first bought XLMTREASURY2 on the DEX, or null. Strict. */

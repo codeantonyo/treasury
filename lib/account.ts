@@ -7,7 +7,7 @@ import { sendMail } from "./mail";
 import { maybeRunPayouts } from "./payout-runner";
 import { randomCode, sha256 } from "./password";
 import { qualify } from "./referrals";
-import { boughtSince, totalHolding } from "./stellar";
+import { firstPurchase } from "./stellar";
 
 export const TAG_RE = /^[a-z0-9_]{3,20}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -91,7 +91,7 @@ export async function appUrl() {
 export function requalifyLater(userId: string) {
   after(async () => {
     try {
-      const r = await qualify(db, userId, { holding: totalHolding, bought: boughtSince });
+      const r = await qualify(db, userId, { firstPurchase });
       if (r.status === "qualified") await maybeRunPayouts();
     } catch {
       // Stellar busy or similar: the cron run picks it up later.

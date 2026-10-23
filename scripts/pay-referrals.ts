@@ -3,6 +3,7 @@
 //
 //   node --env-file-if-exists=.env scripts/pay-referrals.ts            dry run (default): shows what would be paid
 //   node --env-file-if-exists=.env scripts/pay-referrals.ts --apply    sends the payments
+//   ... --apply --allow-large                                           also sends single payouts above the daily limit
 //
 // Reads PAYOUT_SECRET (or DISTRIBUTOR_SECRET) from the environment, never printed. --apply needs POSTGRES_URL.
 import { db } from "../lib/db.ts";
@@ -19,7 +20,7 @@ const d = stellarDeps(db, secret);
 
 console.log(`${apply ? "APPLY" : "DRY RUN"} · database: ${process.env.POSTGRES_URL ? "Postgres (POSTGRES_URL)" : "local .data/db.json"}`);
 console.log(`payout account ${d.account} holds ${await d.balance()} ${MAIN_TOKEN.code}\n`);
-const { ran, outcomes } = await runPayouts(d, !apply);
+const { ran, outcomes } = await runPayouts(d, !apply, { allowLarge: process.argv.includes("--allow-large") });
 if (!ran) console.log("Another payout run is in progress (the app's automatic run). Try again in a few minutes.");
 for (const o of outcomes) console.log(`${o.result.padEnd(12)} ${o.id} · ${o.amount} ${MAIN_TOKEN.code}${"tx" in o ? ` · ${o.tx}` : ` · ${o.why}`}`);
 console.log(`\n${outcomes.length} payout(s) checked.`);

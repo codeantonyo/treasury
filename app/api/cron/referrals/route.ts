@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { autoPayoutsOn, maybeRunPayouts } from "@/lib/payout-runner";
+import { autoPayoutsOn, convertAllOld, maybeRunPayouts } from "@/lib/payout-runner";
 import { stellarDeps } from "@/lib/payout-stellar";
 import { runPayouts } from "@/lib/payouts";
 import { qualify } from "@/lib/referrals";
-import { boughtSince, StellarBusy, totalHolding } from "@/lib/stellar";
+import { firstPurchase, StellarBusy } from "@/lib/stellar";
 
 // Re-checks every pending referral, then sends due referral payouts (when PAYOUTS_AUTO=on).
 // GET /api/cron/referrals[?dry=1]: dry shows what would qualify and what would be paid, sending nothing.
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
 
   for (const r of pending) {
     try {
-      const res = await qualify(db, r.id, { holding: totalHolding, bought: boughtSince }, dry);
+      const res = await qualify(db, r.id, { firstPurchase }, dry);
       const key = res.status === "pending" ? `pending:${res.waitingFor}` : res.status;
       counts[key] = (counts[key] ?? 0) + 1;
       if (res.status === "qualified") qualified.push({ invitee: r.id, ordinal: res.ordinal, amount: res.amount });
@@ -31,11 +31,14 @@ export async function GET(req: Request) {
       counts.stellarBusy = (counts.stellarBusy ?? 0) + 1; // nothing written; next run retries
     }
   }
+  // Old-ladder rewards not yet sent are recalculated with the 200% rule (dry: just counted).
+  const converted = await convertAllOld(dry).catch((e) => (e instanceof StellarBusy ? { stellarBusy: 1 } : Promise.reject(e)));
+
   // Payouts: dry = report only (reads Stellar, sends nothing); otherwise a real pass when switched on.
   let payouts: unknown = { auto: autoPayoutsOn() };
   if (dry && process.env.PAYOUT_SECRET) {
     const d = stellarDeps(db, process.env.PAYOUT_SECRET);
     payouts = { auto: autoPayoutsOn(), account: d.account, balance: await d.balance().catch(() => null), ...(await runPayouts(d, true)) };
   } else if (!dry) payouts = { auto: autoPayoutsOn(), ...((await maybeRunPayouts(0)) ?? { ran: false }) };
-  return Response.json({ dry, checked: pending.length, counts, qualified, payouts });
+  return Response.json({ dry, checked: pending.length, counts, qualified, converted, payouts });
 }

@@ -3,21 +3,21 @@ import { randomUUID } from "node:crypto";
 import { db } from "./db";
 import { stellarDeps } from "./payout-stellar";
 import { DAILY_CAP, payoutsStale, runPayouts } from "./payouts";
+import { convertOld } from "./referrals";
+import { firstPurchase } from "./stellar";
 
 /**
  * Automatic referral payouts. Only when PAYOUTS_AUTO=on, PAYOUT_SECRET is set and the app runs on the
  * real database (never from the local test store, whose wallets may belong to strangers).
  */
-// Paused in code until the 200% referral rule ships (owner, 2026-10-23): queued rewards from the old
-// 100/250/500/1,000 ladder get recalculated first, so nothing may pay under the old amounts.
-const RELEASED = false;
-export const autoPayoutsOn = () => RELEASED && process.env.PAYOUTS_AUTO === "on" && !!process.env.PAYOUT_SECRET && !!process.env.POSTGRES_URL;
+export const autoPayoutsOn = () => process.env.PAYOUTS_AUTO === "on" && !!process.env.PAYOUT_SECRET && !!process.env.POSTGRES_URL;
 
 /** Runs a payout pass if the last one started over `staleMs` ago. Errors are swallowed: the next pass retries. */
 export async function maybeRunPayouts(staleMs = 15 * 60_000) {
   if (!autoPayoutsOn()) return null;
   try {
     if (!(await payoutsStale(db, Date.now(), staleMs))) return null;
+    await convertAllOld(); // old-ladder rewards are recalculated before anything is paid
     const deps = stellarDeps(db, process.env.PAYOUT_SECRET!);
     const res = await runPayouts(deps);
     await warnIfLow(deps.balance);
@@ -26,6 +26,17 @@ export async function maybeRunPayouts(staleMs = 15 * 60_000) {
     console.error("payouts:", (e as Error).message);
     return null;
   }
+}
+
+/** Recalculates every unsent old-ladder reward with the 200% rule (no-op once done). */
+export async function convertAllOld(dry = false) {
+  const out: Record<string, number> = {};
+  for (const r of await db.find("referrals", "status", "qualified")) {
+    if (r.rule) continue;
+    const res = await convertOld(db, r.id, { firstPurchase }, dry);
+    out[res] = (out[res] ?? 0) + 1;
+  }
+  return out;
 }
 
 /** Tells admins in-app, once a day, when the payout wallet can't cover a full day of payouts. */

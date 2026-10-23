@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { memberView } from "@/lib/member";
-import { REFERRAL_REWARDS, rewardFor } from "@/lib/referrals";
+import { BONUS_MULTIPLIER, MIN_PURCHASE_XLM } from "@/lib/referrals";
 import { requireUser } from "@/lib/session";
 import { currentStreak, safeZone, weekStrip } from "@/lib/streak";
 import { fmt } from "@/lib/tiers";
@@ -108,7 +108,7 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
         : r.status === "rejected" ? "Doesn't count"
         : !u?.emailVerified ? "Needs to verify email"
         : !wallets.some((w) => w.status === "verified") ? "Needs to link a wallet"
-        : "Needs to buy 100+ on the DEX";
+        : `Needs a first buy worth ${MIN_PURCHASE_XLM}+ XLM`;
       const payout = payouts.find((p) => p.id === `ref:${r.id}`);
       return { r, name: u?.name ?? "Member", tag: u?.tag ?? "", waiting, payout };
     }),
@@ -124,23 +124,19 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-extrabold">Invite friends</span>
           <span className="text-xs text-lilac-soft">
-            Your next referral earns <b className="text-paper tabular-nums">{fmt(rewardFor(qualified + 1))} {MAIN_TOKEN.code}</b>
+            You <b className="text-paper">both</b> get <b className="text-paper">{BONUS_MULTIPLIER * 100}%</b> of your friend&apos;s first purchase
           </span>
         </div>
         <span className="font-display text-2xl font-extrabold tabular-nums">{qualified}</span>
       </div>
 
-      <ol className="grid grid-cols-4 gap-1.5" aria-label="Reward ladder">
-        {REFERRAL_REWARDS.map((amount, i) => {
-          const done = qualified > i;
-          const label = i === REFERRAL_REWARDS.length - 1 ? "4th+" : ["1st", "2nd", "3rd"][i];
-          return (
-            <li key={i} className={`flex flex-col items-center gap-0.5 rounded-xl py-2 ${done ? "bg-paper text-on-paper" : "bg-black/30"}`}>
-              <span className={`text-[10px] font-extrabold tracking-[0.1em] ${done ? "" : "text-muted"}`}>{label}</span>
-              <span className="text-sm font-extrabold tabular-nums">{fmt(amount)}</span>
-            </li>
-          );
-        })}
+      <ol className="grid grid-cols-2 gap-1.5" aria-label="Examples">
+        {[500, 250].map((buy) => (
+          <li key={buy} className="flex flex-col items-center gap-0.5 rounded-xl bg-black/30 py-2">
+            <span className="text-[10px] font-extrabold tracking-[0.1em] text-muted">FRIEND BUYS {fmt(buy)}</span>
+            <span className="text-sm font-extrabold tabular-nums">+{fmt(buy * BONUS_MULTIPLIER)} each</span>
+          </li>
+        ))}
       </ol>
 
       <div className="flex gap-2.5">
@@ -190,8 +186,9 @@ async function Referrals({ userId, code, qualified }: { userId: string; code: st
       )}
 
       <p className="text-[11px] leading-snug text-muted-2">
-        A friend counts once they sign up with your code, verify their email, link a Stellar wallet, and buy at least 100 {MAIN_TOKEN.code} on the Stellar DEX after signing up (and still hold Tier 1).
-        Rewards are sent automatically to your primary wallet in {MAIN_TOKEN.code}, 7 days after your friend qualifies, as long as they still hold 100+. Your wallet needs the {MAIN_TOKEN.code} trustline.
+        Your friend signs up with your code, verifies their email, links a Stellar wallet, then makes their first {MAIN_TOKEN.code} purchase on the Stellar DEX
+        (worth at least {MIN_PURCHASE_XLM} XLM). You both get {BONUS_MULTIPLIER * 100}% of what they bought, once per friend, sent to your primary wallets in {MAIN_TOKEN.code} 7 days later
+        while they still hold it. Wallets need the {MAIN_TOKEN.code} trustline.
       </p>
     </section>
   );

@@ -66,7 +66,9 @@ export type Referral = Base & {
   status: "pending" | "qualified" | "rejected";
   reason?: string;
   ordinal?: number; // 1st, 2nd... qualified referral of this referrer
-  amount?: number;
+  amount?: number; // the bonus each side gets
+  purchase?: { amount: number; xlm: number; at: number }; // the friend's first qualifying purchase
+  rule?: "bonus200" | "ladder"; // which rule it qualified under (unset = old ladder, not yet converted)
   createdAt: number;
   qualifiedAt?: number;
 };
@@ -74,7 +76,7 @@ export type Referral = Base & {
 /** id is the idempotency key (e.g. "ref:<inviteeId>"): one payout per reward, ever. */
 export type Payout = Base & {
   userId: string;
-  kind: "referral";
+  kind: "referral" | "referral-bonus"; // referrer's reward | the invited friend's own bonus
   amount: number;
   status: "queued" | "sending" | "sent";
   memo: string;
