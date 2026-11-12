@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { canSeeCard } from "@/lib/visa/sync";
+import { isTester } from "@/lib/visa/sync";
 import { Skeleton } from "../../../ui/avatar";
 import CardsConsole from "./console";
 
@@ -19,6 +19,6 @@ export default function AdminCardsPage() {
 
 async function Gate() {
   const user = await requireUser();
-  if (user.role !== "admin" && !canSeeCard(user)) notFound();
+  if (user.role !== "admin" && !isTester(user)) notFound();
   return <CardsConsole />;
 }

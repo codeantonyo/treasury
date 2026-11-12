@@ -8,6 +8,7 @@ const ACTIONS: [string, string, ("amount" | "freeze" | "text")?][] = [
   ["balance", "Balance"],
   ["list", "Cards"],
   ["transactions", "Transactions"],
+  ["raw", "Raw card replies (diagnose)"],
   ["sync", "Sync now"],
   ["bins", "BINs"],
   ["currencies", "Currencies"],

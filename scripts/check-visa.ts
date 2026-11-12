@@ -17,6 +17,7 @@ import {
   topupCostUsd,
   txKey,
   txStatus,
+  waveOpen,
 } from "../lib/visa/pure.ts";
 
 // issuer replies: 202 / pending = money moved, never retry; only a clean 4xx means nothing was charged
@@ -42,6 +43,8 @@ assert.equal(otpOf({ type: "Authorize", merchant: "Amazon card verification", am
 assert.equal(otpOf({ type: "auth", merchant: "3DS passcode 1234" }), "1234");
 assert.equal(otpOf({ type: "Purchase", merchant: "Tesco", amount: 12.5 }), undefined);
 assert.equal(otpOf({ type: "verification", reason: "amount 123456.78" }), undefined, "digits inside a decimal are not a code");
+assert.equal(otpOf({ type: "OTP", merchant: "APPLE PAY", amount: 0, description: "Your code is 551203", txn_id: "ctx_123456ab", date: "2026-11-12 18:02:00" }), "551203", "code in another field; ids/dates ignored");
+assert.equal(otpOf({ type: "OTP", merchant: "GOOGLE *TEMPORARY HOLD", txn_id: "ctx_99123456" }), "", "digits in a txn id are not a code");
 assert.ok(isZeroVerification({ type: "Authorize", merchant: "Amazon", amount: 0 }));
 
 // a payment settling is the same payment
@@ -91,4 +94,9 @@ assert.equal(cardCostUsd(100), 110.2, "$6.20 + 4%");
 assert.equal(cardCreditUsd(20), 27, "a Tier 3 card: load $27 (card $20 + fee)");
 assert.equal(cardCreditUsd(8000), 8327, "a Tier 12 card: load $8,327 ($8,000 + $6.20 + 4%)");
 assert.equal(topupCostUsd(25), 27.08);
+// release waves: only the tiers listed see and can get the card
+assert.deepEqual([2, 3, 4, 5].map((t) => waveOpen(t, "3-4")), [false, true, true, false], "wave 1: Tier 3–4");
+assert.deepEqual([4, 5, 6, 7].map((t) => waveOpen(t, "3-6")), [true, true, true, false], "wave 2 adds 5–6");
+assert.deepEqual([3, 5, 7].map((t) => waveOpen(t, "3,5")), [true, true, false]);
+assert.ok(waveOpen(12, "all") && !waveOpen(null, "all") && !waveOpen(4, ""), "unset = nobody but the testers");
 console.log("visa: ok");

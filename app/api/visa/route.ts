@@ -1,6 +1,6 @@
 import { currentUser } from "@/lib/session";
 import { notifyMember } from "@/lib/notify";
-import { announceIssued, canSeeCard, CARD, eligibility, fulfilWaiting, loadFor, memberOf, reserve, syncCard } from "@/lib/visa/sync";
+import { announceIssued, CARD, eligibility, fulfilWaiting, loadFor, memberOf, reserve, syncCard } from "@/lib/visa/sync";
 import { cardDetails, cardSecrets, closeCard, ensureCustomer, freezeCard, fundMember, issueCard, listCards, memberBalance, ops, record, update, wlMode, type WlCard } from "@/lib/visa/issuer";
 import { CARD_MIN_TIER, cardCostUsd, cardLoadUsd, cardNameOf, declineReason, isLoadRow, isMobile, isPumpHold, isUsableCard, isZeroVerification, otpOf, settledAuths, txKey, txStatus, usd, type WlTransaction } from "@/lib/visa/pure";
 import type { CardCustomer } from "@/lib/db";
@@ -19,12 +19,8 @@ const WAITING_CARD = { id: "waiting", status: "Waiting to be loaded", frozen: fa
 /** "12/30" → "2030-12"; anything else passes through. */
 const toYm = (e?: string) => (e && /^\d{2}\/\d{2}$/.test(e) ? `20${e.slice(3)}-${e.slice(0, 2)}` : e);
 
-/** jane.doe+xlmtreasury@gmail.com → j•••••••@gmail.com (where Apple/Google Pay's "Email" code goes). */
-const maskEmail = (e?: string) => {
-  if (!e) return null;
-  const [user, domain] = e.split("@");
-  return `${user[0]}${"•".repeat(Math.max(3, Math.min(8, user.length - 1)))}@${domain}`;
-};
+/** Issuer rows carry "2026-08-14 10:22:05" with no zone; it's UTC. Make it ISO so browsers don't read it as local time. */
+const isoOf = (d?: string) => (d && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(d) ? `${d.replace(" ", "T")}Z` : (d ?? ""));
 
 /** The card as the app shows it; when the issuer's read fails, what we have on record (never "no card"). */
 function cardView(c: WlCard | undefined, rec?: CardCustomer) {
@@ -58,9 +54,9 @@ function activityRows(rows: WlTransaction[]) {
         merchant: code !== undefined ? "Verification code" : load ? "Loaded by XLM TREASURY" : merchant,
         amount: Math.abs(Number(t.amount ?? 0)),
         currency: t.currency ?? "USD",
-        at: t.date ?? "",
+        at: isoOf(t.date),
         group: load ? "Deposit" : /refund/i.test(t.type ?? "") || txStatus(t.status) === "reversed" ? "Refund" : "Purchase",
-        status: txStatus(t.status) === "pending" ? "completed" : txStatus(t.status),
+        status: txStatus(t.status),
         kind: code !== undefined ? "otp" : load ? "load" : "payment",
         ...(code ? { code } : {}),
         ...(isPumpHold(t)
@@ -91,8 +87,9 @@ async function networkSlow() {
 export async function GET() {
   const member = await signedIn();
   if (!member) return json({ error: "unauthorized" }, 401);
-  if (!wlMode().key || !canSeeCard(member)) return json({ enabled: false, eligible: false, card: null });
-  const { eligible, tier } = await eligibility(member);
+  if (!wlMode().key) return json({ enabled: false, eligible: false, card: null });
+  const { eligible, visible, tier } = await eligibility(member);
+  if (!visible) return json({ enabled: false, eligible: false, card: null }); // their tier's wave isn't out yet
   const base = { enabled: true, eligible, tier, minTier: CARD_MIN_TIER, loadUsd: loadFor(member, tier), nextTierLoad: cardLoadUsd(Math.max(CARD_MIN_TIER, (tier ?? 0) + 1)), hasWallet: member.addresses.length > 0 };
   let rec = await record(member.id);
   if (!eligible || !rec || rec.customerId === 0) return json({ ...base, card: null });
@@ -109,7 +106,8 @@ export async function GET() {
     ...base,
     available: rec.cardId ? (onCard ?? rec.lastBalance ?? null) : null,
     card: view ?? (rec.requestedAt ? WAITING_CARD : null),
-    otpEmail: maskEmail(rec.email),
+    balanceSource: c?.balance_source ?? null,
+    balanceAsOf: c?.balance_as_of ?? null,
     progress: {
       loaded: !!rec.cardId,
       creating: !rec.cardId && !!rec.issuingAt && Date.now() - rec.issuingAt < 180_000,
@@ -131,8 +129,8 @@ const inflight = new Set<string>();
 export async function POST(req: Request) {
   const member = await signedIn();
   if (!member) return json({ error: "unauthorized" }, 401);
-  if (!wlMode().key || !canSeeCard(member)) return json({ ok: false, message: `${CARD} isn't available yet.` }, 403);
-  if (!(await eligibility(member)).eligible) return json({ ok: false, message: `${CARD} unlocks at XLMTREASURY2 Tier ${CARD_MIN_TIER}.` }, 403);
+  if (!wlMode().key) return json({ ok: false, message: `${CARD} isn't available yet.` }, 403);
+  if (!(await eligibility(member)).eligible) return json({ ok: false, message: `${CARD} isn't available for your tier yet.` }, 403);
 
   let b: { action?: string; mobile?: string; cardName?: string; wallet?: string; id?: string };
   try {
@@ -242,6 +240,8 @@ export async function POST(req: Request) {
         ok: true,
         activity: s.failed ? null : activityRows(s.rows), // null = couldn't read; the page keeps what it shows
         available: s.card && typeof s.card.balance_usd === "number" ? s.card.balance_usd : null,
+        balanceSource: s.card?.balance_source ?? null,
+        balanceAsOf: s.card?.balance_as_of ?? null,
         otp: s.otp ?? freshCode ?? null,
         card: cardView(s.card, fresh),
         notices: fresh?.notices ?? [],

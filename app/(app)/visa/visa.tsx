@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckIcon, CopyIcon, LockIcon, SnowIcon, XlmMark } from "../../ui/icons";
+import { ArrowInIcon, CardIcon, CartIcon, CheckIcon, CopyIcon, LockIcon, SnowIcon, WalletIcon, XIcon, XlmMark } from "../../ui/icons";
 import Sheet from "../../ui/sheet";
 
 // The real card. Member-facing copy never names the card issuer.
@@ -19,7 +19,8 @@ type State = {
   loadUsd?: number;
   hasWallet?: boolean;
   available?: number | null;
-  otpEmail?: string | null;
+  balanceSource?: string | null;
+  balanceAsOf?: string | null;
   card: CardView;
   progress?: { loaded: boolean; creating: boolean; created: boolean; active: boolean; wallet: boolean; delayed: boolean; stalled: boolean };
   slow?: boolean;
@@ -88,7 +89,9 @@ export default function VisaSection() {
   const [s, setS] = useState<State | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<null | "setup" | "details" | "wallet" | "close">(null);
+  const [sheet, setSheet] = useState<null | "setup" | "details" | "wallet" | "close" | "row">(null);
+  const [row, setRow] = useState<Row | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -97,11 +100,14 @@ export default function VisaSection() {
     if (r) setS(r);
   }, []);
   const poll = useCallback(async () => {
-    const r = await post<{ activity?: Row[] | null; card?: CardView; available?: number | null; otp?: string | null; notices?: Notice[]; issued?: boolean }>({ action: "activity" });
-    if (r.activity !== undefined && r.activity !== null) setRows(r.activity);
-    if (r.otp) setOtp(r.otp);
+    const r = await post<{ activity?: Row[] | null; card?: CardView; available?: number | null; balanceSource?: string | null; balanceAsOf?: string | null; otp?: string | null; notices?: Notice[]; issued?: boolean }>({ action: "activity" });
+    if (r.activity !== undefined && r.activity !== null) {
+      setRows(r.activity);
+      setUpdatedAt(Date.now());
+    }
+    if (r.ok) setOtp(r.otp ?? null); // the server stops sending a code after 15 min
     if (r.issued) void load();
-    else if (r.card !== undefined) setS((p) => (p ? { ...p, card: r.card ?? p.card, available: r.available ?? p.available, notices: r.notices ?? p.notices } : p));
+    else if (r.card !== undefined) setS((p) => (p ? { ...p, card: r.card ?? p.card, available: r.available ?? p.available, balanceSource: r.balanceSource ?? p.balanceSource, balanceAsOf: r.balanceAsOf ?? p.balanceAsOf, notices: r.notices ?? p.notices } : p));
   }, [load]);
 
   useEffect(() => {
@@ -122,13 +128,11 @@ export default function VisaSection() {
   if (!s.enabled) return null;
 
   const card = s.card;
-  const live = card && !card.waiting;
 
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <span className="eyebrow">YOUR CARD</span>
-        {live && typeof s.available === "number" && <span className="text-xs font-bold text-muted">{usd(s.available)} available</span>}
       </div>
       {s.slow && <p className="rounded-xl bg-ember/10 px-3 py-2 text-xs font-semibold text-ember">The card network is slow right now: new payments may show up a little late.</p>}
 
@@ -142,6 +146,8 @@ export default function VisaSection() {
         <Live
           s={s}
           rows={rows}
+          otp={otp}
+          updatedAt={updatedAt}
           busy={busy}
           onDetails={() => setSheet("details")}
           onWallet={() => setSheet("wallet")}
@@ -153,9 +159,9 @@ export default function VisaSection() {
             if (r.card) setS({ ...s, card: r.card });
             if (!r.ok && r.message) setMsg(r.message);
           }}
-          onReceipt={async (id) => {
-            const r = await post({ action: "receipt", id });
-            setMsg(r.ok ? "Receipt sent to your Telegram." : r.message ?? "Couldn't send the receipt.");
+          onRow={(r) => {
+            setRow(r);
+            setSheet("row");
           }}
         />
       )}
@@ -181,7 +187,6 @@ export default function VisaSection() {
       <Sheet open={sheet === "wallet"} onClose={() => setSheet(null)} title="Add to your phone">
         <AddToWallet
           otp={otp}
-          email={s.otpEmail ?? null}
           onAdded={async (w) => {
             const r = await post({ action: "set-wallet", wallet: w });
             if (r.ok) {
@@ -190,6 +195,18 @@ export default function VisaSection() {
             }
           }}
         />
+      </Sheet>
+      <Sheet open={sheet === "row"} onClose={() => setSheet(null)} title={row?.kind === "otp" ? "Verification code" : "Transaction"}>
+        {row && (
+          <RowDetail
+            r={row}
+            onReceipt={async (id) => {
+              const r = await post({ action: "receipt", id });
+              setSheet(null);
+              setMsg(r.ok ? "Receipt sent to your Telegram." : r.message ?? "Couldn't send the receipt.");
+            }}
+          />
+        )}
       </Sheet>
       <Sheet open={sheet === "close"} onClose={() => setSheet(null)} title="Close your card">
         <CloseCard
@@ -274,55 +291,211 @@ function Waiting({ s }: { s: State }) {
   );
 }
 
-function Live(props: { s: State; rows: Row[] | null; busy: boolean; onDetails: () => void; onWallet: () => void; onClose: () => void; onFreeze: () => void; onReceipt: (id: string) => void }) {
-  const { s, rows } = props;
-  const card = s.card!;
-  const target = s.loadUsd ?? 0;
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+function dayOf(iso: string) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "Earlier";
+  const today = new Date();
+  const yest = new Date(today);
+  yest.setDate(today.getDate() - 1);
+  return sameDay(d, today) ? "Today" : sameDay(d, yest) ? "Yesterday" : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+const timeOf = (iso: string) => (iso && !Number.isNaN(Date.parse(iso)) ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
+const dead = (r: Row) => ["declined", "failed"].includes(r.status);
+const credit = (r: Row) => r.group !== "Purchase";
+
+function StatusChip({ r }: { r: Row }) {
+  const [label, cls] =
+    r.status === "pending" ? ["Pending", "bg-ember/15 text-ember"] : dead(r) ? ["Declined", "bg-red-500/15 text-red-300"] : r.status === "reversed" ? ["Reversed", "bg-white/10 text-muted-2"] : [null, ""];
+  return label ? <span className={`shrink-0 rounded-full px-1.5 py-px text-[10px] font-extrabold ${cls}`}>{label}</span> : null;
+}
+
+function RowIcon({ r }: { r: Row }) {
+  const Icon = r.kind === "otp" ? LockIcon : dead(r) ? XIcon : credit(r) ? ArrowInIcon : CartIcon;
   return (
-    <div className="flex flex-col gap-3">
+    <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${r.kind === "otp" ? "bg-violet/25 text-lilac" : credit(r) && !dead(r) ? "bg-violet-2/20 text-lilac-soft" : "bg-white/[0.07] text-muted-2"}`}>
+      <Icon size={16} />
+    </span>
+  );
+}
+
+function Amount({ r, big }: { r: Row; big?: boolean }) {
+  return (
+    <span className={`shrink-0 font-extrabold tabular-nums ${big ? "font-display text-[34px]" : "text-[14px]"} ${dead(r) ? "text-muted line-through" : credit(r) ? "text-lilac-soft" : "text-paper"} ${r.status === "pending" ? "opacity-70" : ""}`}>
+      {credit(r) ? "+" : "−"}
+      {usd(r.amount, r.currency)}
+    </span>
+  );
+}
+
+function Live(props: {
+  s: State;
+  rows: Row[] | null;
+  otp: string | null;
+  updatedAt: number | null;
+  busy: boolean;
+  onDetails: () => void;
+  onWallet: () => void;
+  onClose: () => void;
+  onFreeze: () => void;
+  onRow: (r: Row) => void;
+}) {
+  const { s, rows, otp } = props;
+  const card = s.card!;
+  const [all, setAll] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const shown = rows?.slice(0, all ? 60 : 15) ?? [];
+  const days = shown.reduce<[string, Row[]][]>((acc, r) => {
+    const d = dayOf(r.at);
+    const last = acc[acc.length - 1];
+    if (last && last[0] === d) last[1].push(r);
+    else acc.push([d, [r]]);
+    return acc;
+  }, []);
+  const action = "press flex flex-col items-center gap-1.5 text-[11px] font-bold text-muted-2 disabled:opacity-40";
+  const round = "flex size-12 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-paper";
+  return (
+    <div className="flex flex-col gap-4">
       <VisaFace last4={card.last4} expiry={mmyy(card.expiry)} frozen={card.frozen} />
-      {card.pending && <p className="text-xs text-muted">The card network is approving your card: details unlock the moment it&apos;s active.</p>}
-      <p className="text-xs text-muted-2">
-        Loaded by XLM TREASURY based on your tier{s.tier ? ` (Tier ${s.tier}: ${usd(target)})` : ""}. You get a message every time it&apos;s loaded.
-      </p>
+
+      <div className="flex flex-col items-center gap-1 text-center">
+        <span className="text-[11px] font-bold tracking-[0.16em] text-muted">AVAILABLE BALANCE</span>
+        <span className="font-display text-[40px] leading-none font-extrabold tabular-nums">{typeof s.available === "number" ? usd(s.available) : "—"}</span>
+        <span className="flex items-center gap-1.5 text-[11px] text-muted">
+          <span className={`size-1.5 rounded-full ${!props.updatedAt ? "bg-white/30" : s.balanceSource === "confirmed" ? "animate-pulse bg-emerald-400" : "animate-pulse bg-ember"}`} />
+          {!props.updatedAt
+            ? "Connecting…"
+            : s.balanceSource === "pending_confirmation" || s.balanceSource === "unknown"
+              ? "Updating: recent payments are being confirmed"
+              : `Live · confirmed ${new Date(s.balanceAsOf && !Number.isNaN(Date.parse(s.balanceAsOf)) ? s.balanceAsOf : props.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+          {s.tier ? ` · Tier ${s.tier}` : ""}
+        </span>
+      </div>
+      {card.pending && <p className="text-center text-xs text-muted">The card network is approving your card: details unlock the moment it&apos;s active.</p>}
+
       <div className="grid grid-cols-3 gap-2">
-        <button className={btn} disabled={!card.detailsReady} onClick={props.onDetails}>
+        <button className={action} disabled={!card.detailsReady} onClick={props.onDetails}>
+          <span className={round}>
+            <CardIcon size={18} />
+          </span>
           Details
         </button>
-        <button className={btn} disabled={props.busy || card.pending} onClick={props.onFreeze}>
-          <SnowIcon size={15} /> {card.frozen ? "Unfreeze" : "Freeze"}
+        <button className={action} disabled={props.busy || card.pending} onClick={props.onFreeze}>
+          <span className={`${round} ${card.frozen ? "border-violet-2 bg-violet/30" : ""}`}>
+            <SnowIcon size={18} />
+          </span>
+          {card.frozen ? "Unfreeze" : "Freeze"}
         </button>
-        <button className={btn} disabled={!card.detailsReady} onClick={props.onWallet}>
+        <button className={action} disabled={!card.detailsReady} onClick={props.onWallet}>
+          <span className={round}>{s.wallet ? <CheckIcon size={18} /> : <WalletIcon size={18} />}</span>
           {s.wallet ? "In wallet" : "Add to Pay"}
         </button>
       </div>
-      <div className="flex flex-col rounded-[18px] border border-white/10 bg-white/[0.035]">
+
+      {otp && (
+        <button
+          onClick={() => void navigator.clipboard.writeText(otp).then(() => setCopied(true))}
+          className="press flex items-center justify-between gap-3 rounded-[18px] border border-violet-2/50 bg-violet/15 px-4 py-3 text-left"
+        >
+          <span className="flex flex-col">
+            <span className="text-[11px] font-bold text-muted">Verification code for your wallet</span>
+            <span className="font-mono text-[24px] font-extrabold tracking-[0.18em]">{otp}</span>
+          </span>
+          <span className="flex items-center gap-1 text-xs font-extrabold text-lilac">
+            {copied ? <CheckIcon size={14} /> : <CopyIcon />} {copied ? "Copied" : "Copy"}
+          </span>
+        </button>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <span className="eyebrow">TRANSACTIONS</span>
         {rows === null ? (
-          <p className="px-4 py-3 text-xs text-muted">Loading activity…</p>
+          <div className="flex flex-col gap-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-[14px] bg-white/[0.04]" />
+            ))}
+          </div>
         ) : rows.length === 0 ? (
-          <p className="px-4 py-3 text-xs text-muted">No payments yet. Every payment shows up here.</p>
+          <p className="rounded-[18px] border border-white/10 bg-white/[0.035] px-4 py-5 text-center text-xs text-muted">No transactions yet. Payments, loads and wallet codes show up here within seconds.</p>
         ) : (
-          rows.slice(0, 20).map((r) => (
-            <button key={r.id} onClick={() => r.kind !== "otp" && props.onReceipt(r.id)} className="flex items-center justify-between gap-3 px-4 py-2.5 text-left not-last:border-b not-last:border-white/[0.06]">
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-[13px] font-bold">{r.kind === "otp" ? `Verification code ${r.code ?? "(expired)"}` : r.merchant}</span>
-                <span className="truncate text-[11px] text-muted">
-                  {r.at ? new Date(r.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
-                  {r.note ? ` · ${r.note}` : ""}
-                </span>
-              </span>
-              {r.kind !== "otp" && (
-                <span className={`shrink-0 text-[13px] font-extrabold tabular-nums ${["declined", "failed"].includes(r.status) ? "text-red-300 line-through" : r.group === "Purchase" ? "text-paper" : "text-lilac-soft"}`}>
-                  {r.group === "Purchase" ? "−" : "+"}
-                  {usd(r.amount, r.currency)}
-                </span>
-              )}
-            </button>
+          days.map(([day, list]) => (
+            <div key={day} className="flex flex-col">
+              <span className="px-1 pb-1 text-[11px] font-bold text-muted">{day}</span>
+              <div className="flex flex-col rounded-[18px] border border-white/10 bg-white/[0.035]">
+                {list.map((r) => (
+                  <button key={r.id} onClick={() => props.onRow(r)} className="press flex items-center gap-3 px-3.5 py-2.5 text-left not-last:border-b not-last:border-white/[0.06]">
+                    <RowIcon r={r} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-[13px] font-bold">{r.kind === "otp" ? "Wallet verification code" : r.merchant}</span>
+                      <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+                        <span className="shrink-0 whitespace-nowrap">{timeOf(r.at)}</span>
+                        <StatusChip r={r} />
+                        {r.note ? <span className="truncate">{r.note}</span> : null}
+                      </span>
+                    </span>
+                    {r.kind === "otp" ? <span className={r.code ? "font-mono text-[14px] font-extrabold tracking-[0.12em]" : "text-[11px] font-bold text-muted"}>{r.code || "expired"}</span> : <Amount r={r} />}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))
         )}
+        {rows && rows.length > 15 && (
+          <button onClick={() => setAll(!all)} className="self-center text-xs font-bold text-lilac">
+            {all ? "Show less" : `Show all ${rows.length}`}
+          </button>
+        )}
       </div>
-      <button onClick={props.onClose} className="self-start text-xs font-bold text-muted underline-offset-4 hover:underline">
+
+      <button onClick={props.onClose} className="self-center text-xs font-bold text-muted underline-offset-4 hover:underline">
         Close card
+      </button>
+    </div>
+  );
+}
+
+/** One transaction, like a bank app's detail screen. */
+function RowDetail({ r, onReceipt }: { r: Row; onReceipt: (id: string) => void }) {
+  const [copied, setCopied] = useState(false);
+  const line = (label: string, v: React.ReactNode) => (
+    <li className="flex items-center justify-between gap-3 px-4 py-3 text-[13px] not-last:border-b not-last:border-white/[0.06]">
+      <span className="text-muted">{label}</span>
+      <span className="text-right font-bold">{v}</span>
+    </li>
+  );
+  const when = r.at && !Number.isNaN(Date.parse(r.at)) ? new Date(r.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "—";
+  if (r.kind === "otp")
+    return (
+      <div className="flex flex-col items-center gap-3 pb-1 text-center">
+        <span className="font-mono text-[34px] font-extrabold tracking-[0.2em]">{r.code || "Expired"}</span>
+        <span className="text-xs text-muted">
+          {r.code ? `Sent ${when}. Enter it in Apple Pay or Google Pay; codes expire after a few minutes.` : `Requested ${when}. This code has expired: start adding the card again for a new one.`}
+        </span>
+        {r.code && (
+          <button className={primary} onClick={() => void navigator.clipboard.writeText(r.code!).then(() => setCopied(true))}>
+            {copied ? "Copied" : "Copy code"}
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <div className="flex flex-col gap-3 pb-1">
+      <div className="flex flex-col items-center gap-2 py-2 text-center">
+        <RowIcon r={r} />
+        <span className="text-sm font-bold text-muted-2">{r.merchant}</span>
+        <Amount r={r} big />
+        <StatusChip r={r} />
+      </div>
+      {r.hint && <p className="rounded-xl bg-white/5 px-3 py-2 text-xs leading-snug text-muted-2">{r.hint}</p>}
+      <ul className="rounded-[18px] border border-white/10 bg-white/[0.035]">
+        {line("Status", r.status === "pending" ? "Pending" : dead(r) ? "Declined" : r.status === "reversed" ? "Reversed" : "Completed")}
+        {line("Date", when)}
+        {line("Type", r.kind === "load" ? "Loaded by XLM TREASURY" : r.group === "Refund" ? "Refund" : "Card payment")}
+        {r.note && line("Note", r.note)}
+      </ul>
+      {r.status === "pending" && <p className="text-center text-[11px] text-muted">Pending payments usually settle within 1 to 3 days. The final amount can change slightly (tips, fuel).</p>}
+      <button className={btn} onClick={() => onReceipt(r.id)}>
+        Send receipt to Telegram
       </button>
     </div>
   );
@@ -419,24 +592,18 @@ function Details() {
 }
 
 /**
- * Apple/Google Pay asks how to verify the card: the member picks Email. The card issuer then sends the
- * code to the card account's email AND lists it on the card, which this sheet polls every 3 s.
+ * Apple/Google Pay asks how to verify the card: the member picks the Email option (the card network's own
+ * address, not the member's). The card network forwards that code onto the card as a transaction row,
+ * which this sheet polls every 3 s.
  */
-function AddToWallet({ otp, email, onAdded }: { otp: string | null; email: string | null; onAdded: (w: "apple" | "google") => void }) {
+function AddToWallet({ otp, onAdded }: { otp: string | null; onAdded: (w: "apple" | "google") => void }) {
   return (
     <div className="flex flex-col gap-3 pb-1 text-[13px] leading-snug text-muted-2">
       <ol className="flex list-decimal flex-col gap-1.5 pl-5">
         <li>Tap Details here and copy your card number, expiry and CVV.</li>
         <li>Open Wallet (iPhone) or Google Wallet, tap Add card, and enter them manually.</li>
         <li>
-          When it asks how to verify, choose <b className="text-paper">Email</b>
-          {email ? (
-            <>
-              {" "}
-              (<span className="font-mono text-paper">{email}</span>)
-            </>
-          ) : null}
-          . Keep this screen open: the code appears below within seconds.
+          When it asks how to verify, choose the <b className="text-paper">Email</b> option. Keep this screen open: the code appears below within seconds.
         </li>
       </ol>
       <div className="flex flex-col items-center gap-1 rounded-[18px] border border-violet-2/40 bg-violet/10 py-4">
@@ -452,7 +619,7 @@ function AddToWallet({ otp, email, onAdded }: { otp: string | null; email: strin
           </span>
         )}
       </div>
-      <p className="text-[11px] text-muted">The same code also arrives in that inbox{email ? "" : ""} and, if you opened the app from @XLMTreasuryBot, on Telegram.</p>
+      <p className="text-[11px] text-muted">It also shows in your card&apos;s transactions and, if you opened the app from @XLMTreasuryBot, on Telegram. Nothing after a minute? Tap resend in your wallet.</p>
       <div className="grid grid-cols-2 gap-2">
         <button className={btn} onClick={() => onAdded("apple")}>
           I added it to Apple Pay

@@ -295,7 +295,26 @@ async function existingToken(member: Member): Promise<{ rec: CardCustomer; token
 }
 
 const fail = (message: string): WlResult => ({ ok: false, status: 400, message, data: {} });
-const list = <T>(d: unknown, ...keys: string[]): T[] => (Array.isArray(d) ? (d as T[]) : (keys.map((k) => (d as Record<string, unknown>)[k]).find(Array.isArray) as T[]) ?? []);
+/**
+ * The array inside an issuer reply, whatever its wrapping: the reply itself, one of `keys`, a common
+ * container ("items", "data", "rows", "records", "results"), or one level deeper (e.g. data.data.transactions).
+ * A shape we don't recognise must not read as "nothing there" silently, so it logs the keys it saw.
+ */
+function list<T>(d: unknown, ...keys: string[]): T[] {
+  const names = [...keys, "items", "data", "rows", "records", "results"];
+  const find = (v: unknown, depth: number): T[] | null => {
+    if (Array.isArray(v)) return v as T[];
+    if (!v || typeof v !== "object" || depth > 2) return null;
+    for (const k of names) {
+      const hit = find((v as Record<string, unknown>)[k], depth + 1);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const got = find(d, 0);
+  if (!got && d && typeof d === "object" && Object.keys(d).length) console.error(`[visa] unrecognised list reply, keys: ${Object.keys(d).join(",")}`);
+  return got ?? [];
+}
 
 // ---------- operations ----------
 
@@ -371,6 +390,9 @@ export interface WlCard {
   last4?: string | null;
   status?: string;
   balance_usd?: number | null;
+  /** confirmed | pending_confirmation (recent activity still settling: show "updating") | unknown (balance_usd null, never 0) */
+  balance_source?: string;
+  balance_as_of?: string | null;
   live_details_available?: boolean;
 }
 
@@ -399,7 +421,8 @@ export async function cardDetails(member: Member, cardId: number): Promise<WlRes
   const t = await existingToken(member);
   if ("error" in t) return { ok: false, status: 400, message: t.error, data: { id: cardId } };
   const r = await wl<{ card?: WlCard } & WlCard>("GET", `/cards/${cardId}`, { token: t.token });
-  return { ...r, data: (r.data.card ?? r.data) as WlCard };
+  // live_details_available sits beside "card", not inside it
+  return { ...r, data: { ...((r.data.card ?? r.data) as WlCard), live_details_available: r.data.live_details_available } };
 }
 
 export interface WlSecrets {
@@ -437,9 +460,21 @@ export async function closeCard(member: Member, cardId: number, reason: string):
   return wl("DELETE", `/cards/${cardId}`, { token: t.token, body: { reason }, idem: `close-${cardId}-${Date.now()}` });
 }
 
+/** Admin diagnostics: the card network's replies for this card exactly as sent (no card number or CVV in them). */
+export async function rawCardReplies(member: Member, cardId: number) {
+  const t = await existingToken(member);
+  if ("error" in t) return { error: t.error };
+  const [card, transactions] = await Promise.all([wl("GET", `/cards/${cardId}`, { token: t.token }), wl("GET", `/cards/${cardId}/transactions`, { token: t.token })]);
+  return { card, transactions };
+}
+
 export async function cardTransactions(member: Member, cardId: number): Promise<WlResult<WlTransaction[]>> {
   const t = await existingToken(member);
   if ("error" in t) return { ok: false, status: 400, message: t.error, data: [] };
   const r = await wl("GET", `/cards/${cardId}/transactions`, { token: t.token });
+  // Issuer docs: an empty list under live_details_available:false is NOT "never used": treat it as a failed read
+  // (keeps the page's rows and the sync markers untouched instead of announcing nothing / replaying later).
+  if (r.ok && (r.data as { live_details_available?: boolean }).live_details_available === false)
+    return { ok: false, status: r.status, message: "The card network couldn't read the card just now.", data: [] };
   return { ...r, data: list(r.data, "transactions") };
 }

@@ -4,7 +4,7 @@ import { notifyAdmins, notifyMember } from "../notify";
 import { StellarBusy, totalHolding } from "../stellar";
 import { tierFor } from "../tiers";
 import { cardDetails, cardTransactions, issueCard, listCards, memberBalance, record, update, wlMode, type Member, type WlCard } from "./issuer";
-import { CARD_MIN_TIER, cardCostUsd, cardCreditUsd, cardLoadUsd, declineReason, isLoadRow, isPumpHold, isUsableCard, isZeroVerification, otpOf, settledAuths, txKey, txStatus, usd, type WlTransaction } from "./pure";
+import { CARD_MIN_TIER, waveOpen, cardCostUsd, cardCreditUsd, cardLoadUsd, declineReason, isLoadRow, isPumpHold, isUsableCard, isZeroVerification, otpOf, settledAuths, txKey, txStatus, usd, type WlTransaction } from "./pure";
 
 export const CARD = "StellarPay Visa";
 const LOW_USD = 10;
@@ -48,21 +48,27 @@ const list = (v: string) =>
 const named = (names: string[], m: { tag: string; email: string }) => names.some((x) => x === m.tag.toLowerCase() || x === m.email.toLowerCase());
 
 /**
- * Who can see the StellarPay Visa at all (page, Home tile, API, console). Owner, 2026-11-12: only
- * @kimjoyce while testing. CARD_VISIBLE_TO = comma list of usernames/emails; "*" opens it to every member.
+ * Testers (CARD_VISIBLE_TO, default "kimjoyce"): always see the card, can get one at any tier, and can use
+ * the admin console. "*" in the list shows the card to every member (the locked teaser below Tier 3).
  */
 const visibleTo = () => list(process.env.CARD_VISIBLE_TO ?? "kimjoyce");
-export const canSeeCard = (m: { tag: string; email: string }) => visibleTo().includes("*") || named(visibleTo(), m);
+export const isTester = (m: { tag: string; email: string }) => named(visibleTo().filter((x) => x !== "*"), m);
 
-/** Pilot members can get a card whatever their tier: CARD_PILOT_USERNAMES plus the people it's limited to. */
-const onPilotList = (m: Member) => named([...list(process.env.CARD_PILOT_USERNAMES ?? ""), ...visibleTo().filter((x) => x !== "*")], m);
+/** Pilot members can get a card whatever their tier: CARD_PILOT_USERNAMES plus the testers. */
+const onPilotList = (m: Member) => named(list(process.env.CARD_PILOT_USERNAMES ?? ""), m) || isTester(m);
 
-/** Owner's rule: XLMTREASURY2 Tier 3+ (CARD_MIN_TIER), or the pilot list, or already has a card / reservation. */
-export async function eligibility(member: Member & { addresses: string[] }): Promise<{ eligible: boolean; tier: number | null }> {
+/** Can get a card: a tester/pilot, already has (or asked for) one, or Tier 3+ whose wave is open. */
+const eligibleFor = (m: Member, tier: number | null, rec?: CardCustomer) =>
+  !!(rec?.cardId || rec?.requestedAt) || onPilotList(m) || ((tier ?? 0) >= CARD_MIN_TIER && waveOpen(tier));
+
+/** Sees the card at all (page, Home tile, API): whoever can get one, or everyone once CARD_VISIBLE_TO has "*". */
+export const canSeeCard = (m: Member, tier: number | null, rec?: CardCustomer) => eligibleFor(m, tier, rec) || visibleTo().includes("*");
+
+/** Owner's rule, by wave: see canSeeCard / eligibleFor. */
+export async function eligibility(member: Member & { addresses: string[] }): Promise<{ eligible: boolean; visible: boolean; tier: number | null }> {
   const rec = await record(member.id);
   const tier = await tierOf(member);
-  if (rec?.cardId || rec?.requestedAt || onPilotList(member)) return { eligible: true, tier };
-  return { eligible: (tier ?? 0) >= CARD_MIN_TIER, tier };
+  return { eligible: eligibleFor(member, tier, rec), visible: canSeeCard(member, tier, rec), tier };
 }
 
 /** The load for the member's tier (pilot members get at least Tier 3's). */
@@ -267,8 +273,7 @@ export async function reserve(member: Member, customerId: number, tier: number |
   const text = `🪙 <b>${CARD} to load</b>\n@${member.tag} (Tier ${tier ?? "?"}) asked for their card. Load <b>${usd(cardCreditUsd(load))}</b> onto issuer customer #${customerId} (${usd(load)} for the card + the issuer's fee). The card issues itself once it lands.`;
   void notifyAdmins(text);
   // Also whoever the card is limited to while testing (they may not hold the admin role).
-  const testers = visibleTo().filter((x) => x !== "*");
-  for (const u of await db.find("users", "role", "member")) if (named(testers, u)) void notifyMember(u.id, text);
+  for (const u of await db.find("users", "role", "member")) if (isTester(u)) void notifyMember(u.id, text);
 }
 
 /** Reservations, longest-unattended first. */

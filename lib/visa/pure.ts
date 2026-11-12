@@ -40,6 +40,7 @@ export interface WlTransaction {
   status?: string;
   reason?: string;
   reason_code?: string;
+  [field: string]: unknown;
 }
 
 const OTP_RE = /(otp|one[\s-]?time|verification|verif|3ds|3-?d\s?secure|security code|passcode|auth(entication)? code)/i;
@@ -54,7 +55,11 @@ export const txKey = (t: WlTransaction) => [t.date, t.type, t.merchant, t.amount
  */
 export function otpOf(t: WlTransaction): string | undefined {
   const isCodeRow = /^otp$/i.test(t.type ?? "");
-  const text = [t.type, t.merchant, t.reason, t.status].filter(Boolean).join(" ");
+  // every text field (the forwarded code may sit in a description/details field), never ids or dates
+  const text = Object.entries(t)
+    .filter(([k, v]) => typeof v === "string" && !/(^|_)id$|date|_at$|_as_of$|currency|reason_source/i.test(k))
+    .map(([, v]) => v)
+    .join(" ");
   if (!isCodeRow && !OTP_RE.test(text)) return undefined;
   const digits = (text.match(/(?<![\d.])\d{6}(?![\d.])/) ?? text.match(/(?<![\d.])\d{4,8}(?![\d.])/))?.[0];
   if (digits) return digits;
@@ -181,6 +186,20 @@ export const topupCostUsd = (amount: number) => Math.round(((amount + 1) / 0.96)
 export const CARD_LOAD_BY_TIER: Record<number, number> = { 3: 20, 4: 50, 5: 100, 6: 200, 7: 400, 8: 1000, 9: 2000, 10: 4000, 11: 6000, 12: 8000 };
 export const CARD_MIN_TIER = Number(process.env.CARD_MIN_TIER) || 3;
 export const cardLoadUsd = (tier: number | null | undefined) => CARD_LOAD_BY_TIER[tier ?? 0] ?? 0;
+
+/**
+ * Release in waves (owner, 2026-11-12): `open` (CARD_OPEN_TIERS) lists the tiers released to members,
+ * e.g. "3-4", then "3-6", "3,4,5,6", or "all". Unset = nobody but the testers.
+ */
+export function waveOpen(tier: number | null, open = process.env.CARD_OPEN_TIERS ?? ""): boolean {
+  const v = open.trim().toLowerCase();
+  if (!v || !tier) return false;
+  if (v === "all") return true;
+  return v.split(",").some((part) => {
+    const [a, b] = part.split("-").map((x) => Number(x.trim()));
+    return b ? tier >= a && tier <= b : tier === a;
+  });
+}
 
 export const usd = (n: number, currency = "USD") => {
   try {

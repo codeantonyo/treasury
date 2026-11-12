@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { canSeeCard } from "@/lib/visa/sync";
+import { eligibility, memberOf } from "@/lib/visa/sync";
 import { Skeleton } from "../../ui/avatar";
 import { ChevronIcon } from "../../ui/icons";
 import VisaSection from "./visa";
@@ -27,7 +27,8 @@ export default function VisaPage() {
 
 async function Gate() {
   const user = await requireUser();
-  if (!canSeeCard(user)) notFound();
+  const member = await memberOf(user.id);
+  if (!member || !(await eligibility(member)).visible) notFound(); // their tier's wave isn't out yet
   return (
     <>
       <header className="relative flex flex-col gap-1">

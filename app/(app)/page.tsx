@@ -17,7 +17,7 @@ import { fmt, tier, toNextTier } from "@/lib/tiers";
 import { ECOSYSTEM_TOKENS, MAIN_TOKEN } from "@/lib/tokens";
 import Avatar, { Skeleton } from "../ui/avatar";
 import Greeting from "../ui/greeting";
-import { BellIcon, ChevronIcon, ReceiveIcon, SendIcon, VaultIcon } from "../ui/icons";
+import { BellIcon, ChevronIcon, ReceiveIcon, SendIcon, VaultIcon, XlmMark } from "../ui/icons";
 import Orbit from "../ui/orbit";
 import StreakCard from "../ui/streak-card";
 import StreakPill from "../ui/streak-pill";
@@ -109,13 +109,20 @@ async function Balance() {
   const [v, mv, price] = await Promise.all([memberView(user), moneyView(user), tokenPriceXlm().catch(() => null)]);
   const value = v.xlm !== null && price !== null && mv.rates ? (v.xlm + v.holding * price) * mv.rates.USD : null;
   const hidden = user.prefs.hideBalances;
-  const amount = hidden ? "••••••" : value !== null ? usd(value) : `${fmt(v.holding)} ${MAIN_TOKEN.code}`;
+  // No USD price right now: the XLMTREASURY2 amount, marked with the Stellar logo instead of the long token code.
+  const inToken = !hidden && value === null;
+  const amount = hidden ? "••••••" : value !== null ? usd(value) : fmt(v.holding);
   const size = amount.length > 14 ? 26 : amount.length > 10 ? 34 : 44;
   return (
     <Link href="/wallet" className="press flex flex-col items-center gap-1">
       <span className="eyebrow">WALLET · ON-CHAIN</span>
-      <span className="chrome max-w-full font-display leading-[1.1] font-extrabold tracking-[-0.01em] tabular-nums" style={{ fontSize: fluid(size) }}>
-        {amount}
+      <span className="flex max-w-full items-center gap-[0.2em]" style={{ fontSize: fluid(size) }} aria-label={inToken ? `${amount} ${MAIN_TOKEN.code}` : undefined}>
+        {inToken && (
+          <span className="flex size-[0.82em] shrink-0 items-center justify-center rounded-full bg-paper text-[#120c22]">
+            <XlmMark size={Math.round(size * 0.52)} />
+          </span>
+        )}
+        <span className="chrome min-w-0 font-display leading-[1.1] font-extrabold tracking-[-0.01em] tabular-nums">{amount}</span>
       </span>
       <span className="text-center text-xs text-muted">
         {!v.verified.length ? (
@@ -134,8 +141,8 @@ async function Balance() {
 async function VisaTile() {
   if (!wlMode().key) return null;
   const user = await requireUser();
-  if (!canSeeCard(user)) return null;
   const [rec, v] = await Promise.all([cardRecord(user.id), memberView(user)]);
+  if (!canSeeCard(user, v.tier, rec)) return null; // their tier's wave isn't out yet
   const hidden = user.prefs.hideBalances;
   const line = rec?.cardId
     ? `•••• ${rec.last4 ?? ""}${typeof rec.lastBalance === "number" && !hidden ? ` · ${usd(rec.lastBalance)} available` : ""}`

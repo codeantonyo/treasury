@@ -16,12 +16,13 @@ import {
   listCurrencies,
   memberBalance,
   ops,
+  rawCardReplies,
   record,
   resolveBin,
   update,
   wlMode,
 } from "@/lib/visa/issuer";
-import { canSeeCard, cardHolders, fulfilWaiting, loadFor, memberOf, syncCard, waitingMembers } from "@/lib/visa/sync";
+import { cardHolders, isTester, fulfilWaiting, loadFor, memberOf, syncCard, waitingMembers } from "@/lib/visa/sync";
 import { CARD_LOAD_BY_TIER, cardCreditUsd } from "@/lib/visa/pure";
 
 /**
@@ -38,7 +39,7 @@ async function isAdmin(req: Request) {
   const want = Buffer.from(`Bearer ${secret}`);
   if (secret && got.length === want.length && timingSafeEqual(got, want)) return true;
   const u = await currentUser();
-  return !!u && (u.role === "admin" || canSeeCard(u)); // the owner testing the card may not hold the admin role
+  return !!u && (u.role === "admin" || isTester(u)); // the owner testing the card may not hold the admin role
 }
 
 async function findMember(q: string) {
@@ -125,6 +126,9 @@ export async function POST(req: Request) {
       return capped() ?? json(await issueCard(member, amount));
     case "list":
       return json(await listCards(member));
+    case "raw":
+      // Exactly what the card network sends for this card: to diagnose missing transactions / codes.
+      return rec?.cardId ? json(await rawCardReplies(member, rec.cardId)) : json({ error: "no card" }, 400);
     case "transactions":
       return rec?.cardId ? json(await cardTransactions(member, rec.cardId)) : json({ error: "no card" }, 400);
     case "sync":
