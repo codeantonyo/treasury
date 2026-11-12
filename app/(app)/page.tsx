@@ -3,6 +3,9 @@ import { Suspense } from "react";
 import { after } from "next/server";
 import { usd } from "@/lib/currencies";
 import { maybeRunPayouts } from "@/lib/payout-runner";
+import { record as cardRecord, wlMode } from "@/lib/visa/issuer";
+import { canSeeCard } from "@/lib/visa/sync";
+import { CARD_MIN_TIER } from "@/lib/visa/pure";
 import { fluid } from "@/lib/format";
 import { db } from "@/lib/db";
 import { tokenPriceXlm } from "@/lib/fx";
@@ -51,6 +54,9 @@ export default function Home() {
             Treasury
           </Link>
         </div>
+        <Suspense fallback={<Skeleton className="h-[74px]" />}>
+          <VisaTile />
+        </Suspense>
         <Suspense fallback={<Skeleton className="h-[86px]" />}>
           <InApp />
         </Suspense>
@@ -120,6 +126,32 @@ async function Balance() {
           `Live from your wallets · ${v.assets} asset${v.assets === 1 ? "" : "s"}`
         )}
       </span>
+    </Link>
+  );
+}
+
+/** The real card (StellarPay Visa): its own page. Reads only our records, never the card network, so Home stays fast. */
+async function VisaTile() {
+  if (!wlMode().key) return null;
+  const user = await requireUser();
+  if (!canSeeCard(user)) return null;
+  const [rec, v] = await Promise.all([cardRecord(user.id), memberView(user)]);
+  const hidden = user.prefs.hideBalances;
+  const line = rec?.cardId
+    ? `•••• ${rec.last4 ?? ""}${typeof rec.lastBalance === "number" && !hidden ? ` · ${usd(rec.lastBalance)} available` : ""}`
+    : rec?.requestedAt
+      ? "Your card is being created"
+      : v.tier >= CARD_MIN_TIER
+        ? "Get your real Visa card"
+        : `Unlocks at Tier ${CARD_MIN_TIER}`;
+  return (
+    <Link href="/visa" className="press flex items-center gap-3.5 rounded-[18px] border border-violet-2/45 bg-linear-120 from-[#160f2b] to-[#2a1a5c] px-4 py-3.5">
+      <span className="flex h-9 w-14 shrink-0 items-end justify-end rounded-md border border-violet-2/60 bg-linear-125 from-ink to-violet-deep px-1.5 pb-1 font-display text-[10px] font-extrabold italic">VISA</span>
+      <span className="flex min-w-0 grow flex-col">
+        <span className="text-sm font-extrabold">StellarPay Visa</span>
+        <span className="truncate text-xs text-muted-2">{line}</span>
+      </span>
+      <ChevronIcon className="shrink-0 text-lilac" />
     </Link>
   );
 }

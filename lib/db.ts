@@ -142,10 +142,65 @@ export type Movement = Base & {
 export type Notification = Base & { userId: string; at: number; text: string; read: boolean };
 
 /** Small system rows (e.g. "payout-runner": the lease that keeps payout runs one at a time). */
-export type Meta = Base & { until?: number; lastRun?: number };
+export type Meta = Base & {
+  until?: number;
+  lastRun?: number;
+  // "card-ops": the issuer's shared sign-in throttle, card health (UI banner) and the card cron's progress
+  loginPauseUntil?: number;
+  health?: { at: number; total: number; synced: number; failed: number; loginErrors: number };
+  cron?: { at: number; phase: string; ms?: number; error?: string; waiting?: number; holders?: number };
+};
+
+/** A notice on the StellarPay Visa (card page and bell). */
+export type CardNotice = { id: string; at: number; kind: "payment" | "declined" | "refund" | "load" | "otp" | "low" | "card"; title: string; body: string };
+
+/**
+ * StellarPay Visa (real card, issuer white-label; see lib/visa). One row per member (id = user id).
+ * Each member is a customer at the card issuer that we create and act as server-side. Card numbers
+ * and CVVs are never stored: they're fetched live per reveal.
+ */
+export type CardCustomer = Base & {
+  env: "sandbox" | "live";
+  customerId: number; // 0 = registration sent, reply not seen yet
+  email: string;
+  password: string; // random, the member never sees it
+  createdAt: number;
+  mobile?: string;
+  cardName?: string;
+  cardId?: number;
+  last4?: string;
+  expiry?: string; // MM/YY
+  token?: string;
+  tokenExp?: number;
+  refreshToken?: string;
+  refreshingAt?: number;
+  loginError?: string;
+  loginErrorAt?: number;
+  loginRetryAt?: number;
+  issuedNoticeFor?: number; // card id the "your card is live" message went out for
+  lastLoadAt?: number; // the owner's last load seen on the card
+  seenTx?: string;
+  seenKeys?: string[];
+  seenOtp?: string;
+  notices?: CardNotice[];
+  wallet?: "apple" | "google";
+  walletAt?: number;
+  firstPurchaseAt?: number;
+  lowBalanceAlertAt?: number;
+  requestedAt?: number;
+  issuingAt?: number;
+  waitTriedAt?: number;
+  issueError?: string;
+  issueErrorAt?: number;
+  lastBalance?: number;
+  tier?: number | null;
+  tierAt?: number;
+  recentRows?: { d?: string; t?: string; m?: string; a?: number; c?: string; s?: string; r?: string }[];
+};
 
 export type Tables = {
   meta: Meta;
+  cardCustomers: CardCustomer;
   users: User;
   wallets: Wallet;
   codes: Code;
